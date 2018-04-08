@@ -1,0 +1,296 @@
+#!/bin/bash
+
+# usage:
+# [-6|-4] (default: -6)
+# --prefix (default: fd1a:6126:2887 for ipv6)
+#          (default: 10. for ipv4)
+# 28387a164997aec602d65711a6a74d4ee162d8fb5987702e7962031a61262887
+#
+
+fatal(){
+    echo "$@" > /dev/stderr
+    exit 1
+}
+
+expand_ipv6() {
+  ip=$1
+
+  # prepend 0 if we start with :
+  grep -qs "^:" <<< $ip && ip="0${ip}"
+
+  # expand ::
+  if grep -qs "::" <<< "$ip"; then
+    colons=$(sed 's/[^:]//g' <<< "$ip")
+    missing=$(sed "s/$colons//" <<< :::::::::)
+    expanded=$(sed 's/:/:0/g' <<< $missing)
+    ip=$(sed "s/::/$expanded/" <<< $ip)
+  fi
+
+  blocks=$(grep -o "[0-9a-f]\+" <<< "$ip")
+  set $blocks
+
+  printf "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n" \
+    $(( 16#$1 )) \
+    $(( 16#$2 )) \
+    $(( 16#$3 )) \
+    $(( 16#$4 )) \
+    $(( 16#$5 )) \
+    $(( 16#$6 )) \
+    $(( 16#$7 )) \
+    $(( 16#$8 ))
+}
+
+compress_ipv6() {
+  ip=$1
+
+  blocks=$(grep -o "[0-9a-f]\+" <<< "$ip")
+  set $blocks
+
+  # compress leading zeros
+  ip=$(printf "%x:%x:%x:%x:%x:%x:%x:%x\n" \
+    $(( 16#$1 )) \
+    $(( 16#$2 )) \
+    $(( 16#$3 )) \
+    $(( 16#$4 )) \
+    $(( 16#$5 )) \
+    $(( 16#$6 )) \
+    $(( 16#$7 )) \
+    $(( 16#$8 ))
+  )
+
+  # prepend : for easier matching
+  ip=:$ip
+
+  # :: must compress the longest chain
+  for pattern in :0:0:0:0:0:0:0:0 \
+           :0:0:0:0:0:0:0 \
+           :0:0:0:0:0:0 \
+           :0:0:0:0:0 \
+           :0:0:0:0 \
+           :0:0; do
+    if grep -qs $pattern <<< $ip; then
+      ip=$(sed "s/$pattern/::/" <<< $ip)
+      # if the substitution occured before the end, we have :::
+      ip=$(sed 's/:::/::/' <<< $ip)
+      break # only one substitution
+    fi
+  done
+
+  # remove prepending : if necessary
+  grep -qs "^:[^:]" <<< $ip && ip=$(sed 's/:\(.*\)/\1/g' <<< $ip)
+
+  echo $ip
+}
+
+is_ipv6(){
+  expanded="$(expand_ipv6 $1)"
+  [ "$1" == "$expanded" ] && return 0
+  compressed="$(compress_ipv6 $expanded)"
+  [ "$1" == "$compressed" ] && return 0
+
+  echo "$1 expands to $expanded and compresses to $compressed but matches neither"
+  return 1
+}
+
+is_ipv4(){
+  grep -qs "[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}" <<< $1 \
+    || return 1
+  for i in $(grep -o "[^\.]" <<< $1); do
+    if [ "$i" -gt 255 ]; then
+      return 1
+    fi
+  done
+  return 0
+}
+
+# key [subnet]
+gen_ipv6(){
+  pubkey=$1
+  subnet=$2
+
+  [ "$subnet" == "" ] && subnet="fd1a:6126:2887::/48"
+
+  prefix=$(cut -d/ -f1 <<< $subnet)
+  if ! is_ipv6 $prefix; then
+    fatal "$prefix: not a valid ipv6 address"
+  fi
+  prefix=$(expand_ipv6 $prefix)
+
+  netmask=$(cut -d/ -f2 <<< $subnet)
+  if [ "$netmask" -le 0 -o "$netmask" -ge 128 ]; then
+    fatal "$netmask: invalid netmask"
+  fi
+
+  pubkeychecksum=$(sha256sum <<< $pubkey)
+  genbytes=( $(grep -o "[0-9a-f]\{2\}" <<< $pubkeychecksum) )
+  netbytes=( $(grep -o "[0-9a-f]\{2\}" <<< $prefix) )
+
+  netmaskbytes=()
+  genmaskbytes=()
+  for i in $(seq 0 15); do
+    n=0
+    g=0
+    for j in $(seq 0 7); do
+      if [ $(( 8 * $i + $j )) -lt $netmask ]; then
+        n=$(( $n | 1 << (7 - $j) ))
+      else
+        g=$(( $g | 1 << (7 - $j) ))
+      fi
+    done
+    netmaskbytes+=($n)
+    genmaskbytes+=($g)
+  done
+
+  bytes=""
+  for i in $(seq 0 15); do
+    b=0
+    b=$(( $b | (16#${netbytes[$i]} & ${netmaskbytes[$i]}) ))
+    b=$(( $b | (16#${genbytes[$i]} & ${genmaskbytes[$i]}) ))
+    bytes="$bytes $b"
+  done
+
+  printf "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\n" \
+    ${bytes[@]}
+
+}
+
+gen_ipv6 "foo"
+gen_ipv6 "bar"
+
+# key [subnet]
+gen_ipv4(){
+  pubkey=$1
+  subnet=$2
+
+  [ "$subnet" == "" ] && subnet="10.0.0.0/8"
+
+  prefix=$(cut -d/ -f1 <<< $subnet)
+  if ! is_ipv4 $prefix; then
+    fatal "$prefix: not a valid ipv4 address"
+  fi
+
+  netmask=$(cut -d/ -f2 <<< $subnet)
+  if [ "$netmask" -le 0 -o "$netmask" -ge 32 ]; then
+    fatal "$netmask: invalid netmask"
+  fi
+
+  pubkeychecksum=$(sha256sum <<< $pubkey)
+  genbytes=( $(grep -o "[0-9a-f]\{2\}" <<< $pubkeychecksum) )
+  netbytes=( $(grep -o "[0-9]\+" <<< $prefix) )
+
+  netmaskbytes=()
+  genmaskbytes=()
+  for i in $(seq 0 3); do
+    n=0
+    g=0
+    for j in $(seq 0 7); do
+      if [ $(( 8 * $i + $j )) -lt $netmask ]; then
+        n=$(( $n | 1 << (7 - $j) ))
+      else
+        g=$(( $g | 1 << (7 - $j) ))
+      fi
+    done
+    netmaskbytes+=($n)
+    genmaskbytes+=($g)
+  done
+
+  bytes=""
+  for i in $(seq 0 3); do
+    b=0
+    b=$(( $b | (${netbytes[$i]} & ${netmaskbytes[$i]}) ))
+    b=$(( $b | (16#${genbytes[$i]} & ${genmaskbytes[$i]}) ))
+    bytes="$bytes $b"
+  done
+
+  printf "%d.%d.%d.%d\n" \
+    ${bytes[@]}
+
+}
+
+gen_ipv4 "foo"
+gen_ipv4 "bar"
+
+runtests() {
+  fine="2001:db8::2:1 2001:db8:0:1:1:1:1:1 2001:db8::1:0:0:1 2001:db8::1 :: ::1 1::"
+  wrong="2001:db8::0:1 2001:db8::1:1:1:1:1 2001:db8:0:0:1::1 2001:DB8::1"
+
+  for ip in $fine; do
+    is_ipv6 $ip && echo PASS || echo FAIL
+  done
+
+  for ip in $wrong; do
+    ! is_ipv6 $ip && echo PASS || echo FAIL
+  done
+}
+
+#prefix4="10.0.0.0/8"
+#prefix6="fd1a:6126:2887::/48"
+#bits=128
+#prefix="$prefix6"
+#ipversion=6
+#pubkey=""
+#
+#eoo=0 # end of options
+#while [[ "$1" ]];
+#do
+#    if ! ((eoo)); then
+#        case "$1" in
+#            --test)
+#                runtests
+#                exit
+#                ;;
+#            -4)
+#                ipversion="4"
+#                bits=32
+#                [ "$prefix" == "" ] && prefix="$prefix4"
+#                shift
+#                ;;
+#            -6)
+#                ipversion="6"
+#                bits=128
+#                [ "$prefix" == "" ] && prefix="$prefix6"
+#                shift
+#                ;;
+#            --prefix)
+#                shift
+#                prefix=$1
+#                shift
+#                ;;
+#            *)
+#                [ "$pubkey" != "" ] && fatal "exactly 1 pubkey is needed"
+#                pubkey="$1"
+#                shift
+#                ;;
+#        esac
+#    fi
+#done
+#
+#if [ "$pubkey" == "" ]; then
+#    fatal "exactly 1 pubkey is needed"
+#fi
+#
+#mask=$(echo "$prefix" | cut -d/ -f2)
+#genbits=$(( $bits - $mask ))
+#genbytes=$(( $genbits / 8 ))
+#rbits=$(( $genbits - 8 * $genbytes))
+#
+#pseudorandom=$(echo -n "$pubkey" | sha256sum | grep -o ..)
+#set $pseudorandom
+#
+#for i in $(seq 1 $genbytes); do
+#    b=$(( 16#$1 ))
+#    echo $b
+#    shift
+#done
+#
+#
+#
+#
+##x=ff
+##echo $(( 16#$x ))
+##echo $(( 16#ff >> 2 ))
+##echo $rbits
+#echo 16#$(( 16#ff00 | 16#00ff ))
+#echo $ipversion
+#echo $prefix
+#echo $genbits
