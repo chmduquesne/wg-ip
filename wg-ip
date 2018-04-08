@@ -40,6 +40,28 @@ expand_ipv6() {
     $(( 16#$8 ))
 }
 
+test_expand_ipv6(){
+  status=0
+  tests="2001:db8::2:1        2001:0db8:0000:0000:0000:0000:0002:0001 \
+         2001:db8:0:1:1:1:1:1 2001:0db8:0000:0001:0001:0001:0001:0001 \
+         2001:db8::1:0:0:1    2001:0db8:0000:0000:0001:0000:0000:0001 \
+         2001:db8::1          2001:0db8:0000:0000:0000:0000:0000:0001 \
+         ::                   0000:0000:0000:0000:0000:0000:0000:0000 \
+         ::1                  0000:0000:0000:0000:0000:0000:0000:0001 \
+         1::                  0001:0000:0000:0000:0000:0000:0000:0000"
+  set $tests
+  while (( "$#" )); do
+    if [ "$(expand_ipv6 $1)" == "$2" ]; then
+      echo "PASS"
+    else
+      echo "FAIL"
+      status=1
+    fi
+    shift 2
+  done
+  return $status
+}
+
 compress_ipv6() {
   ip=$1
 
@@ -82,25 +104,113 @@ compress_ipv6() {
   echo $ip
 }
 
+test_compress_ipv6(){
+  status=0
+  tests="2001:0db8:0000:0000:0000:0000:0002:0001 2001:db8::2:1        \
+         2001:0db8:0000:0001:0001:0001:0001:0001 2001:db8:0:1:1:1:1:1 \
+         2001:0db8:0000:0000:0001:0000:0000:0001 2001:db8::1:0:0:1    \
+         2001:0db8:0000:0000:0000:0000:0000:0001 2001:db8::1          \
+         0000:0000:0000:0000:0000:0000:0000:0000 ::                   \
+         0000:0000:0000:0000:0000:0000:0000:0001 ::1                  \
+         0001:0000:0000:0000:0000:0000:0000:0000 1::                 "
+  set $tests
+  while (( "$#" )); do
+    if [ "$(compress_ipv6 $1)" == "$2" ]; then
+      echo "PASS"
+    else
+      echo "FAIL"
+      status=1
+    fi
+    shift 2
+  done
+  return $status
+}
+
 is_ipv6(){
   expanded="$(expand_ipv6 $1)"
   [ "$1" == "$expanded" ] && return 0
   compressed="$(compress_ipv6 $expanded)"
   [ "$1" == "$compressed" ] && return 0
-
-  echo "$1 expands to $expanded and compresses to $compressed but matches neither"
   return 1
+}
+
+test_is_ipv6(){
+  ok="2001:db8::2:1 \
+      2001:db8:0:1:1:1:1:1 \
+      2001:db8::1:0:0:1 \
+      2001:db8::1 \
+      :: \
+      ::1 \
+      1::"
+  ko="2001:db8::0:1 \
+      2001:db8::1:1:1:1:1 \
+      2001:db8:0:0:1::1 \
+      2001:DB8::1"
+  for ip in $ok; do
+    is_ipv6 $ip && echo PASS || echo FAIL
+  done
+  for ip in $ko; do
+    ! is_ipv6 $ip && echo PASS || echo FAIL
+  done
 }
 
 is_ipv4(){
   grep -qs "[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}" <<< $1 \
     || return 1
-  for i in $(grep -o "[^\.]" <<< $1); do
+  for i in $(grep -o "[0-9]\+" <<< $1); do
     if [ "$i" -gt 255 ]; then
       return 1
     fi
   done
   return 0
+}
+
+test_is_ipv4(){
+  ok="4.2.2.2 \
+      192.168.1.1 \
+      0.0.0.0 \
+      255.255.255.255 \
+      192.168.0.1"
+  ko="a.b.c.d \
+      255.255.255.256 \
+      192.168.0 \
+      1234.123.123.123"
+  for ip in $ok; do
+    is_ipv4 $ip && echo PASS || echo FAIL
+  done
+  for ip in $ko; do
+    ! is_ipv4 $ip && echo PASS || echo FAIL
+  done
+}
+
+netmask_bytes(){
+  netmask=$1
+  len=$2
+
+  res=""
+  for i in $(seq 0 $(( $len - 1 )) ); do
+    b=0
+    for j in $(seq 0 7); do
+      if [ $(( 8 * $i + $j )) -lt $netmask ]; then
+        b=$(( $b | 1 << (7 - $j) ))
+      fi
+    done
+    res="$res $b"
+  done
+  echo $res
+}
+
+test_netmask_bytes(){
+  if [ "$(netmask_bytes 8 4)" == "255 0 0 0" ]; then
+    echo PASS
+  else
+    echo FAIL
+  fi
+  if [ "$(netmask_bytes 9 4)" == "255 128 0 0" ]; then
+    echo PASS
+  else
+    echo FAIL
+  fi
 }
 
 # key [subnet]
@@ -125,37 +235,36 @@ gen_ipv6(){
   genbytes=( $(grep -o "[0-9a-f]\{2\}" <<< $pubkeychecksum) )
   netbytes=( $(grep -o "[0-9a-f]\{2\}" <<< $prefix) )
 
-  netmaskbytes=()
-  genmaskbytes=()
-  for i in $(seq 0 15); do
-    n=0
-    g=0
-    for j in $(seq 0 7); do
-      if [ $(( 8 * $i + $j )) -lt $netmask ]; then
-        n=$(( $n | 1 << (7 - $j) ))
-      else
-        g=$(( $g | 1 << (7 - $j) ))
-      fi
-    done
-    netmaskbytes+=($n)
-    genmaskbytes+=($g)
-  done
+  maskbytes=( $(netmask_bytes $netmask 16) )
 
   bytes=""
   for i in $(seq 0 15); do
-    b=0
-    b=$(( $b | (16#${netbytes[$i]} & ${netmaskbytes[$i]}) ))
-    b=$(( $b | (16#${genbytes[$i]} & ${genmaskbytes[$i]}) ))
+    m=${maskbytes[$i]}
+    m_flipped=$(( $m ^ 16#ff ))
+    b=$(( (16#${netbytes[$i]} & $m) | (16#${genbytes[$i]} & $m_flipped) ))
     bytes="$bytes $b"
   done
 
   printf "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\n" \
-    ${bytes[@]}
+    $bytes
 
 }
 
-gen_ipv6 "foo"
-gen_ipv6 "bar"
+test_gen_ipv6() {
+  tests="foo fd1a:6126:2887:f9b1:d61e:21e7:96d7:8dcc \
+         bar fd1a:6126:2887:6691:8c98:63af:ca94:2d0f"
+  set $tests
+  while (( "$#" )); do
+    if [ "$(gen_ipv6 $1)" == "$2" ]; then
+      echo "PASS"
+    else
+      echo "FAIL"
+      status=1
+    fi
+    shift 2
+  done
+  return $status
+}
 
 # key [subnet]
 gen_ipv4(){
@@ -211,17 +320,15 @@ gen_ipv4 "foo"
 gen_ipv4 "bar"
 
 runtests() {
-  fine="2001:db8::2:1 2001:db8:0:1:1:1:1:1 2001:db8::1:0:0:1 2001:db8::1 :: ::1 1::"
-  wrong="2001:db8::0:1 2001:db8::1:1:1:1:1 2001:db8:0:0:1::1 2001:DB8::1"
-
-  for ip in $fine; do
-    is_ipv6 $ip && echo PASS || echo FAIL
-  done
-
-  for ip in $wrong; do
-    ! is_ipv6 $ip && echo PASS || echo FAIL
-  done
+  test_expand_ipv6
+  test_compress_ipv6
+  test_is_ipv6
+  test_is_ipv4
+  test_netmask_bytes
+  test_gen_ipv6
 }
+
+runtests
 
 #prefix4="10.0.0.0/8"
 #prefix6="fd1a:6126:2887::/48"
