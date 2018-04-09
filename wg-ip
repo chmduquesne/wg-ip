@@ -455,8 +455,8 @@ case "$action" in
     fi
     ;;
   dryrun)
-    if [ $UID !=0 ]; then
-      fail "this command requires root access"
+    if [ "$UID" != 0 ]; then
+      fatal "this command requires root access"
     fi
     if [ "$device" = "" ]; then
       for iface in $(wg show interfaces); do
