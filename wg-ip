@@ -333,13 +333,11 @@ test_gen_ipv4() {
 }
 
 runtests() {
-  test_expand_ipv6
-  test_compress_ipv6
-  test_is_ipv6
-  test_is_ipv4
-  test_netmask_bytes
-  test_gen_ipv6
-  test_gen_ipv4
+  script=$(readlink -f $0)
+  testfuncs=$(grep "^ *test_.*()" $script | sed 's/().*$//g')
+  for i in $testfuncs; do
+    $i;
+  done
 }
 
 runtests
