@@ -118,7 +118,7 @@ test_compress_ipv6(){
     printf "."
     res="$(compress_ipv6 $1)"
     if [ $res != "$2" ]; then
-      echo "expand_ipv6 $1: expected $2, got $res"
+      echo "compress_ipv6 $1: expected $2, got $res"
       status=1
     fi
     shift 2
@@ -189,7 +189,7 @@ test_is_ipv4(){
     is_ipv4 $1
     res=$?
     if [ "$res" != "$2" ]; then
-      echo "is_ipv6 $1: expected $2, got $res"
+      echo "is_ipv4 $1: expected $2, got $res"
       status=1
     fi
     shift 2
