@@ -1,11 +1,15 @@
 #!/bin/bash
-
-# usage:
-# [-6|-4] (default: -6)
-# --prefix (default: fd1a:6126:2887 for ipv6)
-#          (default: 10. for ipv4)
-# 28387a164997aec602d65711a6a74d4ee162d8fb5987702e7962031a61262887
+# Usage
 #
+# Generate an ip
+# wg-ip [-4|-6] [--subnet <subnet>] gen <key>
+#
+# Generate and assign an ip for the specified interface, and for each
+# peer, generate an ip and add it to allowed-ips
+# wg-ip [-4|-6] [--subnet <subnet>] apply [dev <interface>]
+#
+# Like apply, but don't actually apply the changes (default action)
+# wg-ip [-4|-6] [--subnet <subnet>] dryrun [dev <interface>]
 
 fatal(){
     echo "$@" > /dev/stderr
@@ -234,8 +238,6 @@ gen_ipv6(){
   pubkey=$1
   subnet=$2
 
-  [ "$subnet" == "" ] && subnet="fd1a:6126:2887::/48"
-
   prefix=$(cut -d/ -f1 <<< $subnet)
   if ! is_ipv6 $prefix; then
     fatal "$prefix: not a valid ipv6 address"
@@ -342,6 +344,23 @@ test_gen_ipv4() {
   return $status
 }
 
+configure_interface_ipv6(){
+  iface=$1
+  pubkey=$(wg show $iface public-key)
+  ip=$(gen_ipv6 $pubkey $subnet6)
+  echo ip addr add fd1a:6126:2887:6171:2283:b30f:5119:b72b dev wg0
+  for peer in $(wg show $iface peers); do
+    allowed_ips=$(wg show $iface allowed-ips | grep $peer | cut -f2 | tr " " ",")
+    ip=$(gen_ipv6 $pubkey $subnet6)
+    if [ "$allowed_ips" != "" ]; then
+      allowed_ips=$allowed_ips,$ip/128
+    else
+      allowed_ips=$ip/128
+    fi
+    echo "wg set wg0 peer $peer allowed-ips $allowed_ips"
+  done
+}
+
 runtests() {
   script=$(readlink -f $0)
   testfuncs=$(grep "^test_.*()" $script | sed 's/().*$//g')
@@ -355,76 +374,94 @@ runtests() {
   done
 }
 
-runtests
+# default values
+subnet4="10.0.0.0/8"
+subnet6="fd1a:6126:2887::/48"
+mode="ipv6"
+ipbits=128
+device=""
+pubkey=""
 
-#prefix4="10.0.0.0/8"
-#prefix6="fd1a:6126:2887::/48"
-#bits=128
-#prefix="$prefix6"
-#ipversion=6
-#pubkey=""
-#
-#eoo=0 # end of options
-#while [[ "$1" ]];
-#do
-#    if ! ((eoo)); then
-#        case "$1" in
-#            --test)
-#                runtests
-#                exit
-#                ;;
-#            -4)
-#                ipversion="4"
-#                bits=32
-#                [ "$prefix" == "" ] && prefix="$prefix4"
-#                shift
-#                ;;
-#            -6)
-#                ipversion="6"
-#                bits=128
-#                [ "$prefix" == "" ] && prefix="$prefix6"
-#                shift
-#                ;;
-#            --prefix)
-#                shift
-#                prefix=$1
-#                shift
-#                ;;
-#            *)
-#                [ "$pubkey" != "" ] && fatal "exactly 1 pubkey is needed"
-#                pubkey="$1"
-#                shift
-#                ;;
-#        esac
-#    fi
-#done
-#
-#if [ "$pubkey" == "" ]; then
-#    fatal "exactly 1 pubkey is needed"
-#fi
-#
-#mask=$(echo "$prefix" | cut -d/ -f2)
-#genbits=$(( $bits - $mask ))
-#genbytes=$(( $genbits / 8 ))
-#rbits=$(( $genbits - 8 * $genbytes))
-#
-#pseudorandom=$(echo -n "$pubkey" | sha256sum | grep -o ..)
-#set $pseudorandom
-#
-#for i in $(seq 1 $genbytes); do
-#    b=$(( 16#$1 ))
-#    echo $b
-#    shift
-#done
-#
-#
-#
-#
-##x=ff
-##echo $(( 16#$x ))
-##echo $(( 16#ff >> 2 ))
-##echo $rbits
-#echo 16#$(( 16#ff00 | 16#00ff ))
-#echo $ipversion
-#echo $prefix
-#echo $genbits
+while [ "$#" != 0 ];
+do
+  case "$1" in
+    --test)
+      runtests
+      exit
+      ;;
+    -4)
+      mode="ipv4"
+      ipbits=32
+      shift
+      ;;
+    -6)
+      mode="ipv6"
+      ipbits=128
+      shift
+      ;;
+    --subnet)
+      shift
+      subnet=$1
+      prefix=$(cut -d/ -f1 <<< $subnet)
+      if [ "$mode" == "ipv4" ]; then
+        if is_ipv4 $prefix; then
+          subnet4=$subnet
+        else
+          fatal "$1: not a valid ipv4 subnet"
+        fi
+      else
+        if is_ipv6 $prefix; then
+          subnet6=$subnet
+        else
+          fatal "$1: not a valid ipv4 subnet"
+        fi
+      fi
+      netmask=$(cut -d/ -f2 <<< $subnet)
+      if [ "$netmask" -le 0 -o "$netmask" -ge "$ipbits" ]; then
+        fatal "$netmask: not a valid $mode netmask"
+      fi
+      shift
+      ;;
+    gen)
+      if [ "$action" != "" ]; then
+        fatal "only one command is possible"
+      else
+        action=gen
+      fi
+      shift
+      pubkey="$1"
+      shift
+      ;;
+    dev)
+      shift
+      device=$1
+      shift
+      ;;
+    *)
+      fatal "$1: invalid argument"
+      shift
+      ;;
+  esac
+done
+
+[ "$action" == "" ] && action=dryrun
+
+case "$action" in
+  gen)
+    if [ "$mode" == "ipv6" ]; then
+      gen_ipv6 "$pubkey" "$subnet6"
+    else
+      gen_ipv4 "$pubkey" "$subnet4"
+    fi
+    ;;
+  dryrun)
+    if [ $UID !=0 ]; then
+      fail "this command requires root access"
+    fi
+    if [ "$device" = "" ]; then
+      for iface in $(wg show interfaces); do
+        echo $iface
+      done
+    fi
+    ;;
+esac
