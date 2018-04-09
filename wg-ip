@@ -344,11 +344,11 @@ test_gen_ipv4() {
   return $status
 }
 
-configure_interface_ipv6(){
+config_commands(){
   iface=$1
   pubkey=$(wg show $iface public-key)
   ip=$(gen_ipv6 $pubkey $subnet6)
-  echo ip addr add fd1a:6126:2887:6171:2283:b30f:5119:b72b dev wg0
+  echo "ip address add $ip dev $iface"
   for peer in $(wg show $iface peers); do
     allowed_ips=$(wg show $iface allowed-ips | grep $peer | cut -f2 | tr " " ",")
     ip=$(gen_ipv6 $pubkey $subnet6)
@@ -360,6 +360,32 @@ configure_interface_ipv6(){
     echo "wg set wg0 peer $peer allowed-ips $allowed_ips"
   done
 }
+
+mock_wg(){
+  case "$1" in
+    show)
+      if [ "$2" == "interfaces" ]; then
+        echo "wg0"
+        return 0
+      fi
+      if [ "$2" == "wg0" ]; then
+        if [ "$3" == "public-key" ]; then
+          echo "foo"
+          return 0
+        fi
+        if [ "$3" == "peers" ]; then
+          echo "bar"
+          echo "baz"
+          return 0
+        fi
+      fi
+      ;;
+  esac
+}
+
+mock_wg show interfaces
+mock_wg show wg0 peers
+mock_wg show wg0 public-key
 
 runtests() {
   script=$(readlink -f $0)
