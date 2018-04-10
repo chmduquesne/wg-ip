@@ -450,7 +450,8 @@ EOF
   return $status
 }
 
-wg_(){
+# mock command to test dryrun
+mock_wg(){
   case "$1" in
     show)
       if [ "$2" == "interfaces" ]; then
