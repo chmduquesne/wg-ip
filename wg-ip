@@ -490,6 +490,8 @@ runtests() {
   done
 }
 
+# TODO: derive the ipv6 prefix from the interface name?
+
 # default values
 subnet4="10.0.0.0/8"
 subnet6="fd1a:6126:2887::/48"
