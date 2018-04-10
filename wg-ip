@@ -480,14 +480,17 @@ wg_(){
 runtests() {
   script=$(readlink -f $0)
   testfuncs=$(grep "^test_.*()" $script | sed 's/().*$//g')
+  status=0
   for i in $testfuncs; do
     printf "%s" $i
     if $i; then
       echo PASS
     else
+      status=1
       echo FAIL
     fi
   done
+  return $status
 }
 
 # TODO: derive the ipv6 prefix from the interface name?
