@@ -364,24 +364,90 @@ gen_ip(){
   fi
 }
 
-config_commands(){
-  iface=$1
-  pubkey=$(wg show $iface public-key)
-  ip=$(gen_ipv6 $pubkey $subnet6)
-  echo "ip address add $ip dev $iface"
-  for peer in $(wg show $iface peers); do
-    allowed_ips=$(wg show $iface allowed-ips | grep $peer | cut -f2 | tr " " ",")
-    ip=$(gen_ipv6 $pubkey $subnet6)
-    if [ "$allowed_ips" != "" ]; then
-      allowed_ips=$allowed_ips,$ip/128
-    else
-      allowed_ips=$ip/128
-    fi
-    echo "wg set wg0 peer $peer allowed-ips $allowed_ips"
+dryrun_iface(){
+  subnet="$1"
+  iface="$2"
+
+  ipbits=128
+  if is_ipv4 $(cut -d/ -f1 <<< $subnet); then
+    ipbits=32
+  fi
+
+  # configure address
+  iface_pubkey=$(wg show "$iface" public-key)
+  iface_ip=$(gen_ip "$iface_pubkey" "$subnet")
+  echo "ip address add $iface_ip dev $iface"
+
+  # configure allowed ips on each peer
+  for peer_pubkey in $(wg show $iface peers); do
+    peer_ip=$(gen_ip "$peer_pubkey" "$subnet")
+    allowed_ips=$(wg show "$iface" allowed-ips | grep "$peer_pubkey" | cut -f2)
+    allowed_ips="$allowed_ips $peer_ip/$ipbits"
+    allowed_ips="$(tr ' ' ',' <<< $allowed_ips)"
+    echo "wg set wg0 peer $peer_pubkey allowed-ips $allowed_ips"
   done
 }
 
-wg_mock(){
+test_dryrun_iface(){
+  printf "."
+  wg(){
+    wg_ "$@"
+  }
+  expected_output=$(mktemp)
+cat <<EOF > $expected_output
+ip address add 2001:0db8:0002:0000:d61e:21e7:96d7:8dcc dev wg0
+wg set wg0 peer bar allowed-ips 2001:db8::/64,fd00::/128,2001:0db8:0002:0000:8c98:63af:ca94:2d0f/128
+wg set wg0 peer baz allowed-ips 2001:db8::1/64,2001:0db8:0002:0000:ae7b:f4a1:177b:2b31/128
+wg set wg0 peer zuf allowed-ips 2001:0db8:0002:0000:515b:c456:4a37:f06f/128
+EOF
+  status=0
+  differences=$(dryrun_iface "2001:db8:2::/64" "wg0" | diff - "$expected_output")
+  if [ "$?" != 0 ]; then
+    echo "test_dryrun_iface: $differences"
+    status=1
+  fi
+  rm $expected_output
+  unset -f wg
+  return $status
+}
+
+dryrun(){
+  subnet="$1"
+  iface="$2"
+
+  if [ "$iface" != "" ]; then
+    dryrun_iface "$subnet" "$iface"
+  else
+    for iface in $(wg show interfaces); do
+      dryrun_iface "$subnet" "$iface"
+    done
+  fi
+}
+
+test_dryrun(){
+  printf "."
+  wg(){
+    wg_ "$@"
+  }
+  expected_output=$(mktemp)
+cat <<EOF > $expected_output
+ip address add 172.27.157.128 dev wg0
+wg set wg0 peer bar allowed-ips 2001:db8::/64,fd00::/128,172.22.94.149/32
+wg set wg0 peer baz allowed-ips 2001:db8::1/64,172.23.167.251/32
+wg set wg0 peer zuf allowed-ips 172.29.98.139/32
+EOF
+  status=0
+  differences=$(dryrun 172.16.0.0/12 | diff - "$expected_output")
+  if [ "$?" != 0 ]; then
+    echo "test_dryrun: $differences"
+    status=1
+  fi
+  rm $expected_output
+  unset -f wg
+  return $status
+}
+
+wg_(){
   case "$1" in
     show)
       if [ "$2" == "interfaces" ]; then
@@ -407,10 +473,6 @@ wg_mock(){
       ;;
   esac
 }
-
-#wg_mock show interfaces
-#wg_mock show wg0 peers
-#wg_mock show wg0 public-key
 
 runtests() {
   script=$(readlink -f $0)
@@ -450,15 +512,15 @@ while [ "$#" != 0 ]; do
       shift
       prefix=$(cut -d/ -f1 <<< $1)
       if is_ipv6 $prefix; then
-        subnet=$1
+        subnet="$1"
         ipbits=128
       elif is_ipv4 $prefix; then
-        subnet=$1
+        subnet="$1"
         ipbits=32
       else
         fail "$1: not a valid subnet"
       fi
-      netmask=$(cut -d/ -f2 <<< $1)
+      netmask=$(cut -d/ -f2 <<< "$1")
       if [ "$netmask" -le 0 -o "$netmask" -ge "$ipbits" ]; then
         fatal "$netmask: not a valid netmask for this prefix"
       fi
@@ -466,13 +528,20 @@ while [ "$#" != 0 ]; do
       ;;
     gen)
       shift
-      gen_ip $1 $subnet
+      gen_ip "$1" "$subnet"
       exit
       ;;
     dev)
       shift
-      device=$1
+      device="$1"
       shift
+      ;;
+    dryrun)
+      if [ "$UID" != 0 ]; then
+        fatal "this command requires root access"
+      fi
+      dryrun "$subnet" "$device"
+      exit
       ;;
     *)
       fatal "$1: invalid argument"
@@ -481,17 +550,8 @@ while [ "$#" != 0 ]; do
   esac
 done
 
-[ "$action" == "" ] && action=dryrun
-
-case "$action" in
-  dryrun)
-    if [ "$UID" != 0 ]; then
-      fatal "this command requires root access"
-    fi
-    if [ "$device" = "" ]; then
-      for iface in $(wg show interfaces); do
-        echo $iface
-      done
-    fi
-    ;;
-esac
+# perform default action
+if [ "$UID" != 0 ]; then
+  fatal "this command requires root access"
+fi
+dryrun "$subnet" "$device"
