@@ -394,7 +394,7 @@ dryrun_iface(){
 test_dryrun_iface(){
   printf "."
   wg(){
-    wg_ "$@"
+    mock_wg "$@"
   }
   expected_output=$(mktemp)
 cat <<EOF > $expected_output
@@ -430,7 +430,7 @@ dryrun(){
 test_dryrun(){
   printf "."
   wg(){
-    wg_ "$@"
+    mock_wg "$@"
   }
   expected_output=$(mktemp)
 cat <<EOF > $expected_output
