@@ -477,10 +477,6 @@ wg_(){
   esac
 }
 
-apply(){
-  dryrun "$@" | sh
-}
-
 runtests() {
   script=$(readlink -f $0)
   testfuncs=$(grep "^test_.*()" $script | sed 's/().*$//g')
@@ -554,7 +550,7 @@ while [ "$#" != 0 ]; do
       if [ "$UID" != 0 ]; then
         fatal "this command requires root access"
       fi
-      apply "$subnet" "$device"
+      dryrun "$subnet" "$device" | sh
       exit
       ;;
     *)
