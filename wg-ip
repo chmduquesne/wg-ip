@@ -368,15 +368,18 @@ dryrun_iface(){
   subnet="$1"
   iface="$2"
 
+  prefix=$(cut -d/ -f1 <<< $subnet)
+  netmask=$(cut -d/ -f2 <<< $subnet)
+
   ipbits=128
-  if is_ipv4 $(cut -d/ -f1 <<< $subnet); then
+  if is_ipv4 $prefix; then
     ipbits=32
   fi
 
   # configure address
   iface_pubkey=$(wg show "$iface" public-key)
   iface_ip=$(gen_ip "$iface_pubkey" "$subnet")
-  echo "ip address add $iface_ip dev $iface"
+  echo "ip address add $iface_ip/$netmask dev $iface"
 
   # configure allowed ips on each peer
   for peer_pubkey in $(wg show $iface peers); do
@@ -395,7 +398,7 @@ test_dryrun_iface(){
   }
   expected_output=$(mktemp)
 cat <<EOF > $expected_output
-ip address add 2001:0db8:0002:0000:d61e:21e7:96d7:8dcc dev wg0
+ip address add 2001:0db8:0002:0000:d61e:21e7:96d7:8dcc/64 dev wg0
 wg set wg0 peer bar allowed-ips 2001:db8::/64,fd00::/128,2001:0db8:0002:0000:8c98:63af:ca94:2d0f/128
 wg set wg0 peer baz allowed-ips 2001:db8::1/64,2001:0db8:0002:0000:ae7b:f4a1:177b:2b31/128
 wg set wg0 peer zuf allowed-ips 2001:0db8:0002:0000:515b:c456:4a37:f06f/128
@@ -431,7 +434,7 @@ test_dryrun(){
   }
   expected_output=$(mktemp)
 cat <<EOF > $expected_output
-ip address add 172.27.157.128 dev wg0
+ip address add 172.27.157.128/12 dev wg0
 wg set wg0 peer bar allowed-ips 2001:db8::/64,fd00::/128,172.22.94.149/32
 wg set wg0 peer baz allowed-ips 2001:db8::1/64,172.23.167.251/32
 wg set wg0 peer zuf allowed-ips 172.29.98.139/32
