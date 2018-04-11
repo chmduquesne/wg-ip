@@ -596,6 +596,30 @@ mock_wg(){
   esac
 }
 
+help(){
+cat <<EOF
+Usage: $0 [-4|-6|--subnet <subnet>] [gen <pubkey>| [dev <device>] apply| [dev <device>] dryrun]
+
+Subnet used:
+  -4 sets the subnet to $subnet4
+  -6 sets the subnet to $subnet6
+  --subnet allows to set an arbitrary (ipv4 or ipv6) subnet
+
+  By default -6 is enabled.
+
+Device used:
+  dev <device>:
+    specify the device to which the commands apply
+
+Commands:
+  gen <pubkey>:
+    generate an ip from the pubkey, in the specified subnet.
+
+  dryrun:
+    TODO
+EOF
+}
+
 # run the embedded tests
 runtests() {
   script=$(readlink -f $0)
@@ -626,6 +650,10 @@ while [ "$#" != 0 ]; do
   case "$1" in
     --test)
       runtests
+      exit
+      ;;
+    --help)
+      help $0
       exit
       ;;
     -4)
