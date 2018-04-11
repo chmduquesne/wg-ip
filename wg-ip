@@ -18,11 +18,6 @@ fatal(){
     exit 1
 }
 
-# convert hex to dec (portable version)
-hex2dec(){
-  [ "$1" != "" ] && printf "%d" "$(( 0x$1 ))"
-}
-
 # returns the litteral string "$1 $2 ... $i" where i is the input arg
 dollars(){
   res=""
@@ -72,6 +67,7 @@ zip(){
 test_zip(){
   status=0
 
+  # 2 lists of 1 elements
   printf "."
   input1="1"
   input2="a"
@@ -82,6 +78,7 @@ test_zip(){
     status=1
   fi
 
+  # 2 lists of 3 elements
   printf "."
   input1="1 2 3"
   input2="a b c"
@@ -92,6 +89,7 @@ test_zip(){
     status=1
   fi
 
+  # 3 lists of 3 elements
   printf "."
   input1="1 2 3"
   input2="a b c"
@@ -103,6 +101,7 @@ test_zip(){
     status=1
   fi
 
+  # lists of different size (the smallest is taken)
   printf "."
   input1="1 2"
   input2="a b c"
@@ -116,6 +115,12 @@ test_zip(){
   return $status
 }
 
+# convert hex to dec (portable version)
+hex2dec(){
+  [ "$1" != "" ] && printf "%d" "$(( 0x$1 ))"
+}
+
+# expand an ipv6 address
 expand_ipv6() {
   ip=$1
 
@@ -166,6 +171,7 @@ test_expand_ipv6(){
   return $status
 }
 
+# returns a compressed ipv6 address under the form recommended by RFC5952
 compress_ipv6() {
   ip=$1
 
@@ -230,7 +236,8 @@ test_compress_ipv6(){
   return $status
 }
 
-# RFC5952
+# test if the input is an ipv6
+# a valid ipv6 is either the expanded form or the compressed one
 is_ipv6(){
   expanded="$(expand_ipv6 $1)"
   [ "$1" = "$expanded" ] && return 0
@@ -266,6 +273,7 @@ test_is_ipv6(){
   return $status
 }
 
+# test if the input is an ipv4
 is_ipv4(){
   echo $1 |\
     grep -qs "[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}" ||\
@@ -303,6 +311,7 @@ test_is_ipv4(){
   return $status
 }
 
+# returns the bytes of a given netmask
 netmask_bytes(){
   netmask=$1
   len=$2
@@ -335,6 +344,7 @@ test_netmask_bytes(){
   return $status
 }
 
+# generates an ipv6 from a pubkey and a subnet
 gen_ipv6(){
   pubkey=$1
   subnet=$2
@@ -356,9 +366,8 @@ gen_ipv6(){
   netbytes=$(echo $prefix | grep -o "[0-9a-f]\{2\}")
   maskbytes=$(netmask_bytes $netmask 16)
 
-  set $(zip "$maskbytes" "$netbytes" "$genbytes")
-
   bytes=""
+  set $(zip "$maskbytes" "$netbytes" "$genbytes")
   for i in $(seq 0 15); do
     m=$1
     netb=$(hex2dec $2)
@@ -399,7 +408,7 @@ test_gen_ipv6() {
   return $status
 }
 
-# key [subnet]
+# generates an ipv4 from a pubkey and a subnet
 gen_ipv4(){
   pubkey=$1
   subnet=$2
@@ -460,6 +469,8 @@ test_gen_ipv4() {
   return $status
 }
 
+# generates an ip from a pubkey and a subnet (infers the version from the
+# subnet)
 gen_ip(){
   pubkey=$1
   subnet=$2
@@ -585,6 +596,7 @@ mock_wg(){
   esac
 }
 
+# run the embedded tests
 runtests() {
   script=$(readlink -f $0)
   testfuncs=$(grep "^test_.*()" $script | sed 's/().*$//g')
