@@ -144,9 +144,9 @@ test_compress_ipv6(){
 # RFC5952
 is_ipv6(){
   expanded="$(expand_ipv6 $1)"
-  [ "$1" == "$expanded" ] && return 0
+  [ "$1" = "$expanded" ] && return 0
   compressed="$(compress_ipv6 $expanded)"
-  [ "$1" == "$compressed" ] && return 0
+  [ "$1" = "$compressed" ] && return 0
   return 1
 }
 
@@ -460,22 +460,22 @@ EOF
 mock_wg(){
   case "$1" in
     show)
-      if [ "$2" == "interfaces" ]; then
+      if [ "$2" = "interfaces" ]; then
         echo "wg0"
         return 0
       fi
-      if [ "$2" == "wg0" ]; then
-        if [ "$3" == "public-key" ]; then
+      if [ "$2" = "wg0" ]; then
+        if [ "$3" = "public-key" ]; then
           echo "foo"
           return 0
         fi
-        if [ "$3" == "peers" ]; then
+        if [ "$3" = "peers" ]; then
           echo "bar"
           echo "baz"
           echo "zuf"
           return 0
         fi
-        if [ "$3" == "allowed-ips" ]; then
+        if [ "$3" = "allowed-ips" ]; then
           echo "bar	2001:db8::/64 fd00::/128"
           echo "baz	2001:db8::1/64"
         fi
