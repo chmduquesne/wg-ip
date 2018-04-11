@@ -620,7 +620,7 @@ help(){
 	    By default -6 is enabled.
 	Device used:
 	    dev <device>:
-	    specify the device to which the commands apply
+	        specify the device to which the commands apply
 	Commands:
 	    gen <pubkey>:
 	        generate an ip from the pubkey, in the specified subnet.
