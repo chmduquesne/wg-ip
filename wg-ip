@@ -27,6 +27,38 @@ dec2hex(){
   printf "%x" "$1"
 }
 
+# returns the litteral string "$1 $2 ... $i" where i is the input arg
+dollars(){
+  res=""
+  for i in $(seq 1 $1); do
+    res="$res \$$i"
+  done
+  echo "$res"
+}
+
+zip(){
+  nlists=$#
+
+  # assign input lists to variables
+  for i in $(seq 1 $nlists); do
+    eval "list$i='$(echo $1)'"
+    shift
+  done
+
+  res=$list1
+  for i in $(seq 2 $nlists); do
+    eval "list=\$list$i"
+    set $res
+    res=""
+    for e in $(echo $list); do
+      eval "res=\"\$res $(dollars $((i-1))) \$e\""
+      shift $((i-1))
+      [ $# = 0 ] && break
+    done
+  done
+  echo "$res"
+}
+
 expand_ipv6() {
   ip=$1
 
@@ -262,17 +294,23 @@ gen_ipv6(){
   fi
 
   pubkeychecksum=$(echo $pubkey | sha256sum)
-  genbytes=( $(echo $pubkeychecksum | grep -o "[0-9a-f]\{2\}") )
-  netbytes=( $(echo $prefix | grep -o "[0-9a-f]\{2\}") )
 
-  maskbytes=( $(netmask_bytes $netmask 16) )
+  genbytes=$(echo $pubkeychecksum | grep -o "[0-9a-f]\{2\}")
+  netbytes=$(echo $prefix | grep -o "[0-9a-f]\{2\}")
+  maskbytes=$(netmask_bytes $netmask 16)
+
+  set $(zip "$maskbytes" "$netbytes" "$genbytes")
 
   bytes=""
   for i in $(seq 0 15); do
-    m=${maskbytes[$i]}
+    m=$1
+    netb=$(hex2dec $2)
+    genb=$(hex2dec $3)
     m_flipped=$(( m ^ 255 ))
-    b=$(( (16#${netbytes[i]} & m) | (16#${genbytes[i]} & m_flipped) ))
+
+    b=$(( (netb & m) | (genb & m_flipped) ))
     bytes="$bytes $b"
+    shift 3
   done
 
   ip=$(
@@ -320,21 +358,27 @@ gen_ipv4(){
   fi
 
   pubkeychecksum=$(echo $pubkey | sha256sum)
-  genbytes=( $(echo $pubkeychecksum | grep -o "[0-9a-f]\{2\}") )
-  netbytes=( $(echo $prefix | grep -o "[0-9]\+") )
 
-  maskbytes=( $(netmask_bytes $netmask 4) )
+  genbytes=$(echo $pubkeychecksum | grep -o "[0-9a-f]\{2\}")
+  netbytes=$(echo $prefix | grep -o "[0-9]\+")
+  maskbytes=$(netmask_bytes $netmask 4)
+
+  set $(zip "$maskbytes" "$netbytes" "$genbytes")
 
   bytes=""
   for i in $(seq 0 3); do
-    m=${maskbytes[$i]}
+    m=$1
+    netb=$2
+    genb=$(hex2dec $3)
     m_flipped=$(( m ^ 255 ))
-    b=$(( (${netbytes[i]} & m) | (16#${genbytes[i]} & m_flipped) ))
+
+    b=$(( (netb & m) | (genb & m_flipped) ))
     bytes="$bytes $b"
+    shift 3
   done
 
   printf "%d.%d.%d.%d\n" \
-    ${bytes[@]}
+    $bytes
 
 }
 
