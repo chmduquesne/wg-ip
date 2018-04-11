@@ -20,36 +20,39 @@ fatal(){
 
 # TODO use this instead of bash-isms for portability
 hex2dec(){
-  upper=$(echo "$1" | tr 'a-z' 'A-Z')
-  echo "ibase=16; $upper" | bc
+  printf "%d" "$(( 0x$1 ))"
+}
+
+dec2hex(){
+  printf "%x" "$1"
 }
 
 expand_ipv6() {
   ip=$1
 
   # prepend 0 if we start with :
-  grep -qs "^:" <<< $ip && ip="0${ip}"
+  echo $ip | grep -qs "^:" && ip="0${ip}"
 
   # expand ::
-  if grep -qs "::" <<< "$ip"; then
-    colons=$(sed 's/[^:]//g' <<< "$ip")
-    missing=$(sed "s/$colons//" <<< :::::::::)
-    expanded=$(sed 's/:/:0/g' <<< $missing)
-    ip=$(sed "s/::/$expanded/" <<< $ip)
+  if echo $ip | grep -qs "::"; then
+    colons=$(echo $ip | sed 's/[^:]//g')
+    missing=$(echo ":::::::::" | sed "s/$colons//")
+    expanded=$(echo $missing | sed 's/:/:0/g')
+    ip=$(echo $ip | sed "s/::/$expanded/")
   fi
 
-  blocks=$(grep -o "[0-9a-f]\+" <<< "$ip")
+  blocks=$(echo $ip | grep -o "[0-9a-f]\+")
   set $blocks
 
   printf "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n" \
-    $(( 16#$1 )) \
-    $(( 16#$2 )) \
-    $(( 16#$3 )) \
-    $(( 16#$4 )) \
-    $(( 16#$5 )) \
-    $(( 16#$6 )) \
-    $(( 16#$7 )) \
-    $(( 16#$8 ))
+    $(hex2dec $1) \
+    $(hex2dec $2) \
+    $(hex2dec $3) \
+    $(hex2dec $4) \
+    $(hex2dec $5) \
+    $(hex2dec $6) \
+    $(hex2dec $7) \
+    $(hex2dec $8)
 }
 
 test_expand_ipv6(){
@@ -77,19 +80,19 @@ test_expand_ipv6(){
 compress_ipv6() {
   ip=$1
 
-  blocks=$(grep -o "[0-9a-f]\+" <<< "$ip")
+  blocks=$(echo $ip | grep -o "[0-9a-f]\+")
   set $blocks
 
   # compress leading zeros
   ip=$(printf "%x:%x:%x:%x:%x:%x:%x:%x\n" \
-    $(( 16#$1 )) \
-    $(( 16#$2 )) \
-    $(( 16#$3 )) \
-    $(( 16#$4 )) \
-    $(( 16#$5 )) \
-    $(( 16#$6 )) \
-    $(( 16#$7 )) \
-    $(( 16#$8 ))
+    $(hex2dec $1) \
+    $(hex2dec $2) \
+    $(hex2dec $3) \
+    $(hex2dec $4) \
+    $(hex2dec $5) \
+    $(hex2dec $6) \
+    $(hex2dec $7) \
+    $(hex2dec $8)
   )
 
   # prepend : for easier matching
@@ -102,16 +105,16 @@ compress_ipv6() {
            :0:0:0:0:0 \
            :0:0:0:0 \
            :0:0; do
-    if grep -qs $pattern <<< $ip; then
-      ip=$(sed "s/$pattern/::/" <<< $ip)
+    if echo $ip | grep -qs $pattern; then
+      ip=$(echo $ip | sed "s/$pattern/::/")
       # if the substitution occured before the end, we have :::
-      ip=$(sed 's/:::/::/' <<< $ip)
+      ip=$(echo $ip | sed 's/:::/::/')
       break # only one substitution
     fi
   done
 
   # remove prepending : if necessary
-  grep -qs "^:[^:]" <<< $ip && ip=$(sed 's/:\(.*\)/\1/g' <<< $ip)
+  echo $ip | grep -qs "^:[^:]" && ip=$(echo $ip | sed 's/:\(.*\)/\1/g')
 
   echo $ip
 }
@@ -175,9 +178,10 @@ test_is_ipv6(){
 }
 
 is_ipv4(){
-  grep -qs "[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}" <<< $1 \
-    || return 1
-  for i in $(grep -o "[0-9]\+" <<< $1); do
+  echo $1 |\
+    grep -qs "[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}" ||\
+    return 1
+  for i in $(echo $1 | grep -o "[0-9]\+"); do
     if [ "$i" -gt 255 ]; then
       return 1
     fi
@@ -242,25 +246,24 @@ test_netmask_bytes(){
   return $status
 }
 
-# key [subnet]
 gen_ipv6(){
   pubkey=$1
   subnet=$2
 
-  prefix=$(cut -d/ -f1 <<< $subnet)
+  prefix=$(echo $subnet | cut -d/ -f1)
   if ! is_ipv6 $prefix; then
     fatal "$prefix: not a valid ipv6 address"
   fi
   prefix=$(expand_ipv6 $prefix)
 
-  netmask=$(cut -d/ -f2 <<< $subnet)
+  netmask=$(echo $subnet | cut -d/ -f2)
   if [ "$netmask" -le 0 -o "$netmask" -ge 128 ]; then
     fatal "$netmask: invalid netmask"
   fi
 
-  pubkeychecksum=$(sha256sum <<< $pubkey)
-  genbytes=( $(grep -o "[0-9a-f]\{2\}" <<< $pubkeychecksum) )
-  netbytes=( $(grep -o "[0-9a-f]\{2\}" <<< $prefix) )
+  pubkeychecksum=$(echo $pubkey | sha256sum)
+  genbytes=( $(echo $pubkeychecksum | grep -o "[0-9a-f]\{2\}") )
+  netbytes=( $(echo $prefix | grep -o "[0-9a-f]\{2\}") )
 
   maskbytes=( $(netmask_bytes $netmask 16) )
 
@@ -272,9 +275,12 @@ gen_ipv6(){
     bytes="$bytes $b"
   done
 
-  printf "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\n" \
-    $bytes
-
+  ip=$(
+    printf \
+      "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\n" \
+      $bytes \
+  )
+  compress_ipv6 $ip
 }
 
 test_gen_ipv6() {
@@ -282,8 +288,8 @@ test_gen_ipv6() {
          bar fd1a:6126:2887::/48 fd1a:6126:2887:6691:8c98:63af:ca94:2d0f \
          foo fd1a:6126:2887::/49 fd1a:6126:2887:79b1:d61e:21e7:96d7:8dcc \
          bar fd1a:6126:2887::/49 fd1a:6126:2887:6691:8c98:63af:ca94:2d0f \
-         foo 2001:db8::/64       2001:0db8:0000:0000:d61e:21e7:96d7:8dcc \
-         bar 2001:db8::/64       2001:0db8:0000:0000:8c98:63af:ca94:2d0f"
+         foo 2001:db8::/64       2001:db8::d61e:21e7:96d7:8dcc \
+         bar 2001:db8::/64       2001:db8::8c98:63af:ca94:2d0f"
   set $tests
   status=0
   while [ "$#" != 0 ]; do
@@ -303,19 +309,19 @@ gen_ipv4(){
   pubkey=$1
   subnet=$2
 
-  prefix=$(cut -d/ -f1 <<< $subnet)
+  prefix=$(echo $subnet | cut -d/ -f1)
   if ! is_ipv4 $prefix; then
     fatal "$prefix: not a valid ipv4 address"
   fi
 
-  netmask=$(cut -d/ -f2 <<< $subnet)
+  netmask=$(echo $subnet | cut -d/ -f2)
   if [ "$netmask" -le 0 -o "$netmask" -ge 32 ]; then
     fatal "$netmask: invalid netmask"
   fi
 
-  pubkeychecksum=$(sha256sum <<< $pubkey)
-  genbytes=( $(grep -o "[0-9a-f]\{2\}" <<< $pubkeychecksum) )
-  netbytes=( $(grep -o "[0-9]\+" <<< $prefix) )
+  pubkeychecksum=$(echo $pubkey | sha256sum)
+  genbytes=( $(echo $pubkeychecksum | grep -o "[0-9a-f]\{2\}") )
+  netbytes=( $(echo $prefix | grep -o "[0-9]\+") )
 
   maskbytes=( $(netmask_bytes $netmask 4) )
 
@@ -356,7 +362,7 @@ test_gen_ipv4() {
 gen_ip(){
   pubkey=$1
   subnet=$2
-  prefix=$(cut -d/ -f1 <<< $subnet)
+  prefix=$(echo $subnet | cut -d/ -f1)
   if is_ipv6 $prefix; then
     gen_ipv6 $1 $2
   else
@@ -368,8 +374,8 @@ dryrun_iface(){
   subnet="$1"
   iface="$2"
 
-  prefix=$(cut -d/ -f1 <<< $subnet)
-  netmask=$(cut -d/ -f2 <<< $subnet)
+  prefix=$(echo $subnet | cut -d/ -f1)
+  netmask=$(echo $subnet | cut -d/ -f2)
 
   ipbits=128
   if is_ipv4 $prefix; then
@@ -386,7 +392,7 @@ dryrun_iface(){
     peer_ip=$(gen_ip "$peer_pubkey" "$subnet")
     allowed_ips=$(wg show "$iface" allowed-ips | grep "$peer_pubkey" | cut -f2)
     allowed_ips="$allowed_ips $peer_ip/$ipbits"
-    allowed_ips="$(tr ' ' ',' <<< $allowed_ips)"
+    allowed_ips="$(echo $allowed_ips | tr ' ' ',')"
     echo "wg set wg0 peer $peer_pubkey allowed-ips $allowed_ips"
   done
 }
@@ -398,10 +404,10 @@ test_dryrun_iface(){
   }
   expected_output=$(mktemp)
 cat <<EOF > $expected_output
-ip address add 2001:0db8:0002:0000:d61e:21e7:96d7:8dcc/64 dev wg0
-wg set wg0 peer bar allowed-ips 2001:db8::/64,fd00::/128,2001:0db8:0002:0000:8c98:63af:ca94:2d0f/128
-wg set wg0 peer baz allowed-ips 2001:db8::1/64,2001:0db8:0002:0000:ae7b:f4a1:177b:2b31/128
-wg set wg0 peer zuf allowed-ips 2001:0db8:0002:0000:515b:c456:4a37:f06f/128
+ip address add 2001:db8:2:0:d61e:21e7:96d7:8dcc/64 dev wg0
+wg set wg0 peer bar allowed-ips 2001:db8::/64,fd00::/128,2001:db8:2:0:8c98:63af:ca94:2d0f/128
+wg set wg0 peer baz allowed-ips 2001:db8::1/64,2001:db8:2:0:ae7b:f4a1:177b:2b31/128
+wg set wg0 peer zuf allowed-ips 2001:db8:2:0:515b:c456:4a37:f06f/128
 EOF
   status=0
   differences=$(dryrun_iface "2001:db8:2::/64" "wg0" | diff - "$expected_output")
@@ -519,7 +525,7 @@ while [ "$#" != 0 ]; do
       ;;
     --subnet)
       shift
-      prefix=$(cut -d/ -f1 <<< $1)
+      prefix=$(echo $1 | cut -d/ -f1)
       if is_ipv6 $prefix; then
         subnet="$1"
         ipbits=128
@@ -529,7 +535,7 @@ while [ "$#" != 0 ]; do
       else
         fail "$1: not a valid subnet"
       fi
-      netmask=$(cut -d/ -f2 <<< "$1")
+      netmask=$(echo $1 | cut -d/ -f2)
       if [ "$netmask" -le 0 -o "$netmask" -ge "$ipbits" ]; then
         fatal "$netmask: not a valid netmask for this prefix"
       fi
