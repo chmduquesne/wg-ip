@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # Usage
 #
 # Generate an ip
@@ -18,13 +18,9 @@ fatal(){
     exit 1
 }
 
-# TODO use this instead of bash-isms for portability
+# convert hex to dec (portable version)
 hex2dec(){
-  printf "%d" "$(( 0x$1 ))"
-}
-
-dec2hex(){
-  printf "%x" "$1"
+  [ "$1" != "" ] && printf "%d" "$(( 0x$1 ))"
 }
 
 # returns the litteral string "$1 $2 ... $i" where i is the input arg
@@ -36,6 +32,20 @@ dollars(){
   echo "$res"
 }
 
+test_dollars(){
+  printf "."
+  input=3
+  expected='$1 $2 $3'
+  got="$(dollars $input)"
+
+  if [ "$(echo $got)" != "$(echo $expected)" ]; then
+    echo "dollars $input: expected '$expected', got '$res'"
+    return 1
+  fi
+  return 0
+}
+
+# zips n lists together
 zip(){
   nlists=$#
 
@@ -57,6 +67,53 @@ zip(){
     done
   done
   echo "$res"
+}
+
+test_zip(){
+  status=0
+
+  printf "."
+  input1="1"
+  input2="a"
+  expected='1 a'
+  got="$(zip "$input1" "$input2")"
+  if [ "$(echo $got)" != "$(echo $expected)" ]; then
+    echo "zip '$input1' '$input2': expected '$expected', got '$res'"
+    status=1
+  fi
+
+  printf "."
+  input1="1 2 3"
+  input2="a b c"
+  expected='1 a 2 b 3 c'
+  got="$(zip "$input1" "$input2")"
+  if [ "$(echo $got)" != "$(echo $expected)" ]; then
+    echo "zip '$input1' '$input2': expected '$expected', got '$res'"
+    status=1
+  fi
+
+  printf "."
+  input1="1 2 3"
+  input2="a b c"
+  input3="x y z"
+  expected='1 a x 2 b y 3 c z'
+  got="$(zip "$input1" "$input2" "$input3")"
+  if [ "$(echo $got)" != "$(echo $expected)" ]; then
+    echo "zip '$input1' '$input2' '$input3': expected '$expected', got '$res'"
+    status=1
+  fi
+
+  printf "."
+  input1="1 2"
+  input2="a b c"
+  expected='1 a 2 b'
+  got="$(zip "$input1" "$input2")"
+  if [ "$(echo $got)" != "$(echo $expected)" ]; then
+    echo "zip '$input1' '$input2': expected '$expected', got '$res'"
+    status=1
+  fi
+
+  return $status
 }
 
 expand_ipv6() {
