@@ -327,11 +327,14 @@ netmask_bytes(){
 	res=""
 	for i in $(seq 0 $(( len - 1 )) ); do
 		b=0
-		for j in $(seq 0 7); do
-			if [ $(( 8 * i + j )) -lt $netmask ]; then
-				b=$(( b | 1 << (7 - j) ))
-			fi
-		done
+		j=$(( netmask - 8 * i))
+		if [ $j -ge 8 ]; then
+			b=255
+		elif [ $j -gt 0 ]; then
+			b=$(( (255 << (8-j)) & 255 ))
+		else
+			b=0
+		fi
 		res="$res $b"
 	done
 	echo $res
@@ -548,12 +551,12 @@ dryrun(){
 	subnet="$1"
 	iface="$2"
 
+	if [ "$iface" = "" ]; then
+		iface="$(wg show interfaces | tr ' ' '\n' | head -n1)"
+	fi
+
 	if [ "$iface" != "" ]; then
 		dryrun_iface "$subnet" "$iface"
-	else
-		for iface in $(wg show interfaces); do
-			dryrun_iface "$subnet" "$iface"
-		done
 	fi
 }
 
