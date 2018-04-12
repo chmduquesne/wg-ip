@@ -737,7 +737,7 @@ while [ "$#" != 0 ]; do
 done
 
 # perform default action
-if [ "$(whoami)" != 0 ]; then
+if [ "$(whoami)" != "root" ]; then
 	fatal "This command requires root access"
 fi
 dryrun "$subnet" "$device"
