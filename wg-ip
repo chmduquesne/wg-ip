@@ -613,7 +613,7 @@ mock_wg(){
 
 help(){
 	cat <<-EOF
-	Usage: $0 [-4|-6|--subnet <subnet>] [gen <pubkey>| [dev <device>] apply| [dev <device>] dryrun]
+	Usage: $1 [-4|-6|--subnet <subnet>] [gen <pubkey>| [dev <device>] apply| [dev <device>] dryrun]
 	Intended usage:
 	    wg-ip dev wg0 apply
 	Subnet used:
@@ -639,7 +639,7 @@ help(){
 	        allowed ip in the same specified subnet.
 	    dryrun:
 	        dryrun is just showing the commands that apply would run
-	    Executing $0 without argument is the same as running '$0 dryrun'
+	    Executing $1 without argument is the same as running '$1 dryrun'
 	EOF
 }
 
@@ -676,7 +676,7 @@ while [ "$#" != 0 ]; do
 			exit
 			;;
 		--help)
-			help $0
+			help $(basename $0)
 			exit
 			;;
 		-4)
