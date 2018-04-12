@@ -620,15 +620,23 @@ help(){
 	    By default -6 is enabled.
 	Device used:
 	    dev <device>:
-	        specify the device to which the commands apply
+	        specify the device to which the commands apply.
+	    If no device is specified, commands are applied to the first entry
+	    returned by 'wg show interfaces'
 	Commands:
+	    --help
+	        show this message
+	    --test
+	        run the embedded test suite
 	    gen <pubkey>:
 	        generate an ip from the pubkey, in the specified subnet.
 	    apply:
-	        TODO
+	        assign an ip in the specified subnet to the specified
+	        interface, and then for all peers of this interface, add an
+	        allowed ip in the same specified subnet.
 	    dryrun:
 	        dryrun is just showing the commands that apply would run
-	Executing $0 without argument is the same as running '$0 dryrun'
+	    Executing $0 without argument is the same as running '$0 dryrun'
 	EOF
 }
 
