@@ -518,6 +518,7 @@ dryrun_iface(){
 	for peer_pubkey in $(wg show $iface peers); do
 		peer_ip=$(gen_ip "$peer_pubkey" "$subnet")
 		allowed_ips=$(wg show "$iface" allowed-ips | grep "$peer_pubkey" | cut -f2)
+		[ "$allowed_ips" = "(none)" ] && allowed_ips=""
 		allowed_ips="$allowed_ips $peer_ip/$ipbits"
 		allowed_ips="$(echo $allowed_ips | tr ' ' ',')"
 		echo "wg set wg0 peer $peer_pubkey allowed-ips $allowed_ips"
@@ -605,6 +606,7 @@ mock_wg(){
 				if [ "$3" = "allowed-ips" ]; then
 					echo "bar	2001:db8::/64 fd00::/128"
 					echo "baz	2001:db8::1/64"
+					echo "zuf	(none)"
 				fi
 			fi
 			;;
