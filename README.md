@@ -8,12 +8,12 @@ See https://lists.zx2c4.com/pipermail/wireguard/2018-April/002593.html
 Usage
 -----
 
-    Usage: $1 [-4|-6|--subnet <subnet>] [gen <pubkey>|[dev <device> ]apply|[dev <device> ]dryrun]
+    Usage: wg-ip [-4|-6|--subnet <subnet>] [gen <pubkey>|[dev <device> ]apply|[dev <device> ]dryrun]
     Subnet used:
         -4
-            sets the subnet to $subnet4
+            sets the subnet to 10.0.0.0/8
         -6
-            sets the subnet to $subnet6
+            sets the subnet to fd1a:6126:2887::/48
         --subnet <subnet>
             sets an arbitrary (ipv4 or ipv6) subnet
     When the subnet is specified several times, only the last
@@ -41,7 +41,7 @@ Usage
         apply:
             actually run the commands displayed by 'dryrun'
     When several commands are specified, only the last one is
-    executed. Executing '$1' without argument is the same as running
-    '$1 dryrun'
+    executed. Executing 'wg-ip' without argument is the same as running
+    'wg-ip dryrun'
     Example:
         wg-ip dev wg0 apply
