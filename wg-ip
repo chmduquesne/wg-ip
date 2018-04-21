@@ -241,7 +241,7 @@ compress_ipv6() {
 	done
 
 	# remove prepending : if necessary
-	echo $ip | grep -qs "^:[^:]" && ip=$(echo $ip | sed 's/:\(.*\)/\1/g')
+	echo $ip | grep -qs "^:[^:]" && ip=$(echo $ip | sed 's/://')
 
 	echo $ip
 }
