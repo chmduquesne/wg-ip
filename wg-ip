@@ -1,17 +1,47 @@
 #!/bin/sh
-# Usage
-#
-# Generate an ip
-# wg-ip [-4|-6] [--subnet <subnet>] gen <key>
-#
-# Generate and assign an ip for the specified interface, and for each
-# peer, generate an ip and add it to allowed-ips
-# wg-ip [-4|-6] [--subnet <subnet>] apply [dev <interface>]
-#
-# Like apply, but don't actually apply the changes (default action)
-# wg-ip [-4|-6] [--subnet <subnet>] dryrun [dev <interface>]
-#
-# Options: [-4|-6]: use the default ipv4/ipv6 subnet (default -6)
+
+# usage
+help(){
+	cat <<-EOF
+	Usage: $1 [-4|-6|--subnet <subnet>] [gen <pubkey>|[dev <device> ]apply|[dev <device> ]dryrun]
+	Subnet used:
+	    -4
+	        sets the subnet to $subnet4
+	    -6
+	        sets the subnet to $subnet6
+	    --subnet <subnet>
+	        sets an arbitrary (ipv4 or ipv6) subnet
+	When the subnet is specified several times, only the last
+	occurrence applies. By default -6 is enabled.
+	Device used:
+	    dev <device>:
+	        specify the device to which the commands apply.
+	    When the device option is used several times, only the last
+	    occurrence applies. If no device is specified, commands are
+	    applied to the first entry returned by 'wg show interfaces'
+	Commands:
+	    --help
+	        show this message
+	    --test
+	        run the embedded test suite
+	    gen <pubkey>:
+	        generate an ip from the pubkey, in the specified subnet.
+	    dryrun:
+	        generate an ip from the pubkey of the specified interface (see
+	        "device used"), as well as for all the peers of that same
+	        interface, in the specified subnet (see "subnet used"). Create
+	        commands to add this ip to the interface, as well as commands
+	        to modify allowed_ips for each peer. The commands are simply
+	        displayed, not applied.
+	    apply:
+	        actually run the commands displayed by 'dryrun'
+	When several commands are specified, only the last one is
+	executed. Executing '$1' without argument is the same as running
+	'$1 dryrun'
+	Example:
+	    wg-ip dev wg0 apply
+	EOF
+}
 
 fatal(){
 	echo "$@" > /dev/stderr
@@ -613,38 +643,6 @@ mock_wg(){
 	esac
 }
 
-help(){
-	cat <<-EOF
-	Usage: $1 [-4|-6|--subnet <subnet>] [gen <pubkey>| [dev <device>] apply| [dev <device>] dryrun]
-	Intended usage:
-	    wg-ip dev wg0 apply
-	Subnet used:
-	    -4 sets the subnet to $subnet4
-	    -6 sets the subnet to $subnet6
-	    --subnet allows to set an arbitrary (ipv4 or ipv6) subnet
-	    By default -6 is enabled.
-	Device used:
-	    dev <device>:
-	        specify the device to which the commands apply.
-	    If no device is specified, commands are applied to the first entry
-	    returned by 'wg show interfaces'
-	Commands:
-	    --help
-	        show this message
-	    --test
-	        run the embedded test suite
-	    gen <pubkey>:
-	        generate an ip from the pubkey, in the specified subnet.
-	    apply:
-	        assign an ip in the specified subnet to the specified
-	        interface, and then for all peers of this interface, add an
-	        allowed ip in the same specified subnet.
-	    dryrun:
-	        dryrun is just showing the commands that apply would run
-	    Executing $1 without argument is the same as running '$1 dryrun'
-	EOF
-}
-
 # run the embedded tests
 runtests() {
 	script=$(readlink -f $0)
@@ -670,16 +668,17 @@ subnet6="fd1a:6126:2887::/48"
 subnet=$subnet6
 device=""
 pubkey=""
+cmd="dryrun"
 
 while [ "$#" != 0 ]; do
 	case "$1" in
 		--test)
-			runtests
-			exit
+			cmd="--test"
+			shift
 			;;
 		--help)
-			help $(basename $0)
-			exit
+			cmd="--help"
+			shift
 			;;
 		-4)
 			subnet=$subnet4
@@ -709,8 +708,9 @@ while [ "$#" != 0 ]; do
 			;;
 		gen)
 			shift
-			gen_ip "$1" "$subnet"
-			exit
+			pubkey=$1
+			cmd="gen"
+			shift
 			;;
 		dev)
 			shift
@@ -718,18 +718,12 @@ while [ "$#" != 0 ]; do
 			shift
 			;;
 		dryrun)
-			if [ "$(whoami)" != "root" ]; then
-				fatal "This command requires root access"
-			fi
-			dryrun "$subnet" "$device"
-			exit
+			cmd="dryrun"
+			shift
 			;;
 		apply)
-			if [ "$(whoami)" != "root" ]; then
-				fatal "This command requires root access"
-			fi
-			dryrun "$subnet" "$device" | sh -x
-			exit
+			cmd="apply"
+			shift
 			;;
 		*)
 			fatal "$1: invalid argument"
@@ -738,8 +732,29 @@ while [ "$#" != 0 ]; do
 	esac
 done
 
-# perform default action
-if [ "$(whoami)" != "root" ]; then
-	fatal "This command requires root access"
-fi
-dryrun "$subnet" "$device"
+case "$cmd" in
+	"--test")
+		runtests
+		;;
+	"--help")
+		help $(basename $0)
+		;;
+	"gen")
+		gen_ip $pubkey $subnet
+		;;
+	"dryrun")
+		if [ "$(whoami)" != "root" ]; then
+			fatal "This command requires root access"
+		fi
+		dryrun "$subnet" "$device"
+		;;
+	"apply")
+		if [ "$(whoami)" != "root" ]; then
+			fatal "This command requires root access"
+		fi
+		dryrun "$subnet" "$device" | sh -x
+		;;
+	*)
+		fail "$cmd: wrong command (arguments parsing failed)"
+		;;
+esac
