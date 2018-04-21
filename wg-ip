@@ -521,7 +521,7 @@ dryrun_iface(){
 		[ "$allowed_ips" = "(none)" ] && allowed_ips=""
 		allowed_ips="$allowed_ips $peer_ip/$ipbits"
 		allowed_ips="$(echo $allowed_ips | tr ' ' ',')"
-		echo "wg set wg0 peer $peer_pubkey allowed-ips $allowed_ips"
+		echo "wg set $iface peer $peer_pubkey allowed-ips $allowed_ips"
 	done
 }
 
