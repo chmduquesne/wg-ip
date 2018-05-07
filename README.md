@@ -3,7 +3,12 @@
 wg-ip is a tool to assign ip addresses derived from the public keys to
 wireguard interfaces.
 
-See https://lists.zx2c4.com/pipermail/wireguard/2018-April/002593.html
+Quality
+-------
+
+wg-ip is written to be portable across shells. It should run fine on
+openwrt (if not, it's a bug). A test suite guarantees some level of
+robustness.
 
 Usage
 -----
@@ -45,3 +50,8 @@ Usage
     'wg-ip dryrun'
     Example:
         wg-ip dev wg0 apply
+
+Original post
+-------------
+
+See https://lists.zx2c4.com/pipermail/wireguard/2018-April/002593.html
