@@ -48,50 +48,30 @@ fatal(){
 	exit 1
 }
 
-# returns the litteral string "$1 $2 ... $i" where i is the input arg
-dollars(){
-	res=""
-	for i in $(seq 1 $1); do
-		res="$res \$$i"
-	done
-	echo "$res"
-}
-
-test_dollars(){
-	printf "."
-	input=3
-	expected='$1 $2 $3'
-	got="$(dollars $input)"
-
-	if [ "$(echo $got)" != "$(echo $expected)" ]; then
-		echo "dollars $input: expected '$expected', got '$res'"
-		return 1
-	fi
-	return 0
-}
-
 # zips n lists together
 zip(){
 	nlists=$#
 
-	# assign input lists to variables
+	# assign input lists to variables named 'list1' 'list2' etc
 	for i in $(seq 1 $nlists); do
 		eval "list$i='$(echo $1)'"
 		shift
 	done
 
-	res=$list1
-	for i in $(seq 2 $nlists); do
-		eval "list=\$list$i"
-		set $res
-		res=""
-		for e in $(echo $list); do
-			eval "res=\"\$res $(dollars $((i-1))) \$e\""
-			shift $((i-1))
-			[ $# = 0 ] && break
+	while true; do
+		tuple=""
+		for i in $(seq 1 $nlists); do
+			eval "list=\$list$i"
+			[ "$list" = "" ] && return 0
+
+			set $list
+			tuple="$tuple $1"
+
+			shift
+			eval "list$i='$*'"
 		done
+		echo "$tuple"
 	done
-	echo "$res"
 }
 
 test_zip(){
