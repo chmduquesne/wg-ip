@@ -61,14 +61,11 @@ zip(){
 	while [ $nlists != 0 ] ; do
 		tuple=""
 		for i in $(seq 1 $nlists); do
-			# return when the list is empty
+			# return without printing the tuple if empty list
 			eval "[ -z \"\$list$i\" ] && return 0"
-
-			eval "set \$list$i"
-			tuple="$tuple $1"
-
-			shift
-			eval "list$i='$*'"
+			eval "head=\$(printf '%s\\n' \$list$i | head -n1)"
+			eval "list$i=\$(printf '%s\\n' \$list$i | tail -n+2)"
+			tuple="$tuple $head"
 		done
 		echo "$tuple"
 	done
@@ -88,8 +85,8 @@ test_zip(){
 
 	# 1 lists of 2 elements
 	printf "."
-	input='1 a'
-	expected='1 a'
+	input='- a'
+	expected='- a'
 	got="$(zip "$input")"
 	if [ "$(echo $got)" != "$(echo $expected)" ]; then
 		echo "zip '$input': expected '$expected', got '$res'"
