@@ -52,13 +52,15 @@ fatal(){
 zip(){
 	nlists=$#
 
+	[ $nlists = 0 ] && return 0
+
 	# assign input lists to variables
 	for i in $(seq 1 $nlists); do
 		eval "list$i='$1'"
 		shift
 	done
 
-	while [ $nlists != 0 ] ; do
+	while true; do
 		tuple=""
 		for i in $(seq 1 $nlists); do
 			# return without printing the tuple if empty list
