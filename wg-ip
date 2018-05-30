@@ -58,7 +58,7 @@ zip(){
 		shift
 	done
 
-	while true; do
+	while [ $nlists != 0 ] ; do
 		tuple=""
 		for i in $(seq 1 $nlists); do
 			# return when the list is empty
@@ -76,6 +76,25 @@ zip(){
 
 test_zip(){
 	status=0
+
+	# No argument
+	printf "."
+	expected=''
+	got="$(zip)"
+	if [ "$(echo $got)" != "$(echo $expected)" ]; then
+		echo "zip (no argument): expected '$expected', got '$res'"
+		status=1
+	fi
+
+	# 1 lists of 2 elements
+	printf "."
+	input='1 a'
+	expected='1 a'
+	got="$(zip "$input")"
+	if [ "$(echo $got)" != "$(echo $expected)" ]; then
+		echo "zip '$input': expected '$expected', got '$res'"
+		status=1
+	fi
 
 	# 2 lists of 1 elements
 	printf "."
