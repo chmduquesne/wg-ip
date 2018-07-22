@@ -741,13 +741,13 @@ case "$cmd" in
 		gen_ip $pubkey $subnet
 		;;
 	"dryrun")
-		if [ "$(whoami)" != "root" ]; then
+		if [ "$USER" != "root" ]; then
 			fatal "This command requires root access"
 		fi
 		dryrun "$subnet" "$device"
 		;;
 	"apply")
-		if [ "$(whoami)" != "root" ]; then
+		if [ "$USER" != "root" ]; then
 			fatal "This command requires root access"
 		fi
 		dryrun "$subnet" "$device" | sh -x
