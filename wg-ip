@@ -696,7 +696,7 @@ while [ "$#" != 0 ]; do
 				subnet="$1"
 				ipbits=32
 			else
-				fail "$1: not a valid subnet"
+				fatal "$1: not a valid subnet"
 			fi
 			netmask=$(echo $1 | cut -d/ -f2)
 			if [ "$netmask" -le 0 -o "$netmask" -ge "$ipbits" ]; then
@@ -753,6 +753,6 @@ case "$cmd" in
 		dryrun "$subnet" "$device" | sh -x
 		;;
 	*)
-		fail "$cmd: wrong command (arguments parsing failed)"
+		fatal "$cmd: wrong command (arguments parsing failed)"
 		;;
 esac
