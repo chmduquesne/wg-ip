@@ -21,9 +21,9 @@ If you have more specific needs:
 
 - For a node with several wireguard interface, use `dev` to specify which one:
   `wg-ip dev wg0 apply`.
-- To use ipv4, use -4.
-- When you want to specify a custom subnet, use --subnet (whether to use
-  ipv4 or ipv6 will be inferred from the subnet).
+- When you want ipv4 addresses or a different v4/v6 subnet, use `-4` or
+  more generally `--subnet` (whether to use ipv4 or ipv6 will be inferred
+  from the subnet).
 
 Advanced usage
 --------------
