@@ -10,8 +10,23 @@ wg-ip is written to be portable across shells. It should run fine on
 openwrt (if not, it's a bug). A test suite guarantees some level of
 robustness.
 
-Usage
------
+How to
+------
+
+I personally just run `wg-ip apply` after adding the peers and before
+bringing the interface up. In my automation scripts, I obtain the private
+ip address of a given node by using `wg-ip gen <node-pubkey>`.
+
+If you have more specific needs:
+
+- For a node with several wireguard interface, use `dev` to specify which one:
+  `wg-ip dev wg0 apply`.
+- To use ipv4, use -4.
+- When you want to specify a custom subnet, use --subnet (whether to use
+  ipv4 or ipv6 will be inferred from the subnet).
+
+Advanced usage
+--------------
 
     Usage: wg-ip [-4|-6|--subnet <subnet>] [gen <pubkey>|[dev <device> ]apply|[dev <device> ]dryrun]
     Subnet used:
