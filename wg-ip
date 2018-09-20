@@ -407,19 +407,18 @@ gen_ipv6(){
 
 	pubkeychecksum=$(echo $pubkey | sha256sum)
 
-	genbytes=$(echo $pubkeychecksum | grep -o "[0-9a-f]\{2\}")
-	netbytes=$(echo $prefix | grep -o "[0-9a-f]\{2\}")
-	maskbytes=$(netmask_bytes $netmask 16)
+	suffix_bytes=$(echo $pubkeychecksum | grep -o "[0-9a-f]\{2\}")
+	prefix_bytes=$(echo $prefix | grep -o "[0-9a-f]\{2\}")
+	mask_bytes=$(netmask_bytes $netmask 16)
 
 	bytes=""
-	set $(zip "$maskbytes" "$netbytes" "$genbytes")
+	set $(zip "$mask_bytes" "$prefix_bytes" "$suffix_bytes")
 	for i in $(seq 0 15); do
-		m=$1
-		netb=$(hex2dec $2)
-		genb=$(hex2dec $3)
-		m_flipped=$(( m ^ 255 ))
+		mask=$1
+		prefix=$(hex2dec $2)
+		suffix=$(hex2dec $3)
 
-		b=$(( (netb & m) | (genb & m_flipped) ))
+		b=$(( (prefix & mask) | (suffix & (mask^255)) ))
 		bytes="$bytes $b"
 		shift 3
 	done
@@ -473,20 +472,19 @@ gen_ipv4(){
 
 	pubkeychecksum=$(echo $pubkey | sha256sum)
 
-	genbytes=$(echo $pubkeychecksum | grep -o "[0-9a-f]\{2\}")
-	netbytes=$(echo $prefix | grep -o "[0-9]\+")
-	maskbytes=$(netmask_bytes $netmask 4)
+	suffix_bytes=$(echo $pubkeychecksum | grep -o "[0-9a-f]\{2\}")
+	prefix_bytes=$(echo $prefix | grep -o "[0-9]\+")
+	mask_bytes=$(netmask_bytes $netmask 4)
 
-	set $(zip "$maskbytes" "$netbytes" "$genbytes")
+	set $(zip "$mask_bytes" "$prefix_bytes" "$suffix_bytes")
 
 	bytes=""
 	for i in $(seq 0 3); do
-		m=$1
-		netb=$2
-		genb=$(hex2dec $3)
-		m_flipped=$(( m ^ 255 ))
+		mask=$1
+		prefix=$2
+		suffix=$(hex2dec $3)
 
-		b=$(( (netb & m) | (genb & m_flipped) ))
+		b=$(( (prefix & mask) | (suffix & (mask^255)) ))
 		bytes="$bytes $b"
 		shift 3
 	done
