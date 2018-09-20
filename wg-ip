@@ -353,9 +353,14 @@ test_is_ipv4(){
 }
 
 # returns the bytes of a given netmask
-netmask_bytes(){
+mask_to_bytes(){
 	netmask=$1
-	len=$2
+	ipversion=$2
+	if [ "$ipversion" = "ipv4" ]; then
+		len=4
+	else
+		len=16
+	fi
 
 	res=""
 	for i in $(seq 0 $(( len - 1 )) ); do
@@ -373,17 +378,17 @@ netmask_bytes(){
 	echo $res
 }
 
-# unit tests for netmask_bytes
-test_netmask_bytes(){
+# unit tests for mask_to_bytes
+test_mask_to_bytes(){
 	status=0
 	printf "."
-	if [ "$(netmask_bytes 8 4)" != "255 0 0 0" ]; then
-		echo "netmask_bytes 8 4: FAIL"
+	if [ "$(mask_to_bytes 8 ipv4)" != "255 0 0 0" ]; then
+		echo "mask_to_bytes 8 ipv4: FAIL"
 		status=1
 	fi
 	printf "."
-	if [ "$(netmask_bytes 9 4)" != "255 128 0 0" ]; then
-		echo "netmask_bytes 8 4: FAIL"
+	if [ "$(mask_to_bytes 9 4)" != "255 128 0 0 0 0 0 0 0 0 0 0 0 0 0 0" ]; then
+		echo "mask_to_bytes 8 ipv6: FAIL"
 		status=1
 	fi
 	return $status
@@ -409,7 +414,7 @@ gen_ipv6(){
 
 	suffix_bytes=$(echo $pubkeychecksum | grep -o "[0-9a-f]\{2\}")
 	prefix_bytes=$(echo $prefix | grep -o "[0-9a-f]\{2\}")
-	mask_bytes=$(netmask_bytes $netmask 16)
+	mask_bytes=$(mask_to_bytes $netmask "ipv6")
 
 	bytes=""
 	set $(zip "$mask_bytes" "$prefix_bytes" "$suffix_bytes")
@@ -474,7 +479,7 @@ gen_ipv4(){
 
 	suffix_bytes=$(echo $pubkeychecksum | grep -o "[0-9a-f]\{2\}")
 	prefix_bytes=$(echo $prefix | grep -o "[0-9]\+")
-	mask_bytes=$(netmask_bytes $netmask 4)
+	mask_bytes=$(mask_to_bytes $netmask "ipv4")
 
 	set $(zip "$mask_bytes" "$prefix_bytes" "$suffix_bytes")
 
