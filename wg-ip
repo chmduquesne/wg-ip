@@ -73,6 +73,7 @@ zip(){
 	done
 }
 
+# unit tests for zip
 test_zip(){
 	status=0
 
@@ -177,6 +178,7 @@ expand_ipv6() {
 		$(hex2dec $8)
 }
 
+# unit tests for expand_ipv6
 test_expand_ipv6(){
 	tests=" \
 		2001:db8::2:1        2001:0db8:0000:0000:0000:0000:0002:0001 \
@@ -244,6 +246,7 @@ compress_ipv6() {
 	echo $ip
 }
 
+# unit tests for compress_ipv6
 test_compress_ipv6(){
 	tests=" \
 		2001:0db8:0000:0000:0000:0000:0002:0001 2001:db8::2:1        \
@@ -278,6 +281,7 @@ is_ipv6(){
 	return 1
 }
 
+# unit tests for is_ipv6
 test_is_ipv6(){
 	tests=" \
 		2001:db8::2:1        0 \
@@ -320,6 +324,7 @@ is_ipv4(){
 	return 0
 }
 
+# unit tests for is_ipv4
 test_is_ipv4(){
 	tests=" \
 		4.2.2.2          0 \
@@ -368,6 +373,7 @@ netmask_bytes(){
 	echo $res
 }
 
+# unit tests for netmask_bytes
 test_netmask_bytes(){
 	status=0
 	printf "."
@@ -426,6 +432,7 @@ gen_ipv6(){
 	compress_ipv6 $ip
 }
 
+# unit tests for gen_ipv6
 test_gen_ipv6() {
 	tests=" \
 		foo fd1a:6126:2887::/48 fd1a:6126:2887:f9b1:d61e:21e7:96d7:8dcc \
@@ -489,6 +496,7 @@ gen_ipv4(){
 
 }
 
+# unit tests for gen_ipv4
 test_gen_ipv4() {
 	tests=" \
 		foo 10.0.0.0/8    10.187.157.128 \
@@ -525,6 +533,7 @@ gen_ip(){
 	fi
 }
 
+# print the commands required to configure the interface with the subnet
 dryrun_iface(){
 	subnet="$1"
 	iface="$2"
@@ -553,6 +562,7 @@ dryrun_iface(){
 	done
 }
 
+# unit tests for dryrun_iface
 test_dryrun_iface(){
 	printf "."
 	wg(){
@@ -576,6 +586,8 @@ test_dryrun_iface(){
 	return $status
 }
 
+# print the commands to configure the interace (if not provided, the first
+# one) with the subnet
 dryrun(){
 	subnet="$1"
 	iface="$2"
@@ -589,6 +601,7 @@ dryrun(){
 	fi
 }
 
+# unit tests for dryrun
 test_dryrun(){
 	printf "."
 	wg(){
@@ -613,6 +626,18 @@ test_dryrun(){
 }
 
 # mock command for testing
+# wg_mock show interfaces
+# -> wg0
+# wg_mock show wg0 public-key
+# -> foo
+# wg_mock show wg0 peers
+# -> bar
+#    baz
+#    zuf
+# wg_mock show wg0 allowed-ips
+# -> bar	2001:db8::/64 fd00::/128
+#    baz	2001:db8::1/64
+#    zuf	(none)
 mock_wg(){
 	case "$1" in
 		show)
