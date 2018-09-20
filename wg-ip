@@ -414,11 +414,11 @@ gen_ipv6(){
 	bytes=""
 	set $(zip "$mask_bytes" "$prefix_bytes" "$suffix_bytes")
 	for i in $(seq 0 15); do
-		mask=$1
-		prefix=$(hex2dec $2)
-		suffix=$(hex2dec $3)
+		mask_byte=$1
+		prefix_byte=$(hex2dec $2)
+		suffix_byte=$(hex2dec $3)
 
-		b=$(( (prefix & mask) | (suffix & (mask^255)) ))
+		b=$(( (prefix_byte & mask_byte) | (suffix_byte & (mask_byte^255)) ))
 		bytes="$bytes $b"
 		shift 3
 	done
@@ -480,11 +480,11 @@ gen_ipv4(){
 
 	bytes=""
 	for i in $(seq 0 3); do
-		mask=$1
-		prefix=$2
-		suffix=$(hex2dec $3)
+		mask_byte=$1
+		prefix_byte=$2
+		suffix_byte=$(hex2dec $3)
 
-		b=$(( (prefix & mask) | (suffix & (mask^255)) ))
+		b=$(( (prefix_byte & mask_byte) | (suffix_byte & (mask_byte^255)) ))
 		bytes="$bytes $b"
 		shift 3
 	done
