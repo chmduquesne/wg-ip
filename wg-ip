@@ -146,7 +146,9 @@ test_zip(){
 
 # convert hex to dec (portable version)
 hex2dec(){
-	[ "$1" != "" ] && printf "%d" "$(( 0x$1 ))"
+	for i in $(echo "$@"); do
+		printf "%d\n" "$(( 0x$i ))"
+	done
 }
 
 # expand an ipv6 address
@@ -168,14 +170,7 @@ expand_ipv6() {
 	set $blocks
 
 	printf "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n" \
-		$(hex2dec $1) \
-		$(hex2dec $2) \
-		$(hex2dec $3) \
-		$(hex2dec $4) \
-		$(hex2dec $5) \
-		$(hex2dec $6) \
-		$(hex2dec $7) \
-		$(hex2dec $8)
+		$(hex2dec $@)
 }
 
 # unit tests for expand_ipv6
@@ -212,14 +207,7 @@ compress_ipv6() {
 
 	# compress leading zeros
 	ip=$(printf "%x:%x:%x:%x:%x:%x:%x:%x\n" \
-		$(hex2dec $1) \
-		$(hex2dec $2) \
-		$(hex2dec $3) \
-		$(hex2dec $4) \
-		$(hex2dec $5) \
-		$(hex2dec $6) \
-		$(hex2dec $7) \
-		$(hex2dec $8)
+		$(hex2dec $@)
 	)
 
 	# prepend : for easier matching
