@@ -39,7 +39,7 @@ help(){
 	executed. Executing '$1' without argument is the same as running
 	'$1 dryrun'
 	Example:
-	    wg-ip dev wg0 apply
+	    $1 dev wg0 apply
 	EOF
 }
 
