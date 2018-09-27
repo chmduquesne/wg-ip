@@ -757,13 +757,13 @@ case "$cmd" in
 		gen_ip $pubkey $subnet
 		;;
 	"dryrun")
-		if [ "$USER" != "root" ]; then
+		if [ "$(id -u)" != "0" ]; then
 			fatal "This command requires root access"
 		fi
 		dryrun "$subnet" "$device"
 		;;
 	"apply")
-		if [ "$USER" != "root" ]; then
+		if [ "$(id -u)" != "0" ]; then
 			fatal "This command requires root access"
 		fi
 		dryrun "$subnet" "$device" | sh -x
