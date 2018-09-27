@@ -44,7 +44,7 @@ help(){
 }
 
 fatal(){
-	echo "$@" > /dev/stderr
+	echo "$@" >> /dev/stderr
 	exit 1
 }
 
