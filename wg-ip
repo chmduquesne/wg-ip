@@ -391,13 +391,13 @@ gen_ipv6(){
 
 	prefix=$(echo $subnet | cut -d/ -f1)
 	if ! is_ipv6 $prefix; then
-		fatal "$prefix: not a valid ipv6 address"
+		fatal "$prefix: invalid ipv6 address"
 	fi
 	prefix=$(expand_ipv6 $prefix)
 
 	netlen=$(echo $subnet | cut -d/ -f2)
 	if [ "$netlen" -le 0 -o "$netlen" -ge 128 ]; then
-		fatal "$netlen: invalid netlen"
+		fatal "$netlen: invalid net length"
 	fi
 
 	pubkeychecksum=$(echo $pubkey | sha256sum)
@@ -457,12 +457,12 @@ gen_ipv4(){
 
 	prefix=$(echo $subnet | cut -d/ -f1)
 	if ! is_ipv4 $prefix; then
-		fatal "$prefix: not a valid ipv4 address"
+		fatal "$prefix: invalid ipv4 address"
 	fi
 
 	netlen=$(echo $subnet | cut -d/ -f2)
 	if [ "$netlen" -le 0 -o "$netlen" -ge 32 ]; then
-		fatal "$netlen: invalid netlen"
+		fatal "$netlen: invalid net length"
 	fi
 
 	pubkeychecksum=$(echo $pubkey | sha256sum)
@@ -532,11 +532,11 @@ cut_ipv6(){
 	netlen=$2
 
 	if ! is_ipv6 $ip; then
-		fatal "$ip: not a valid ipv6 address"
+		fatal "$ip: invalid ipv6 address"
 	fi
 	ip=$(expand_ipv6 $ip)
 	if [ "$netlen" -le 0 -o "$netlen" -ge 128 ]; then
-		fatal "$netlen: invalid netlen"
+		fatal "$netlen: invalid net length"
 	fi
 
 	mask_bytes=$(mask $netlen "ipv6")
@@ -591,7 +591,7 @@ cut_ipv4(){
 	netlen=$2
 
 	if ! is_ipv4 $ip; then
-		fatal "$ip: not a valid ipv4 address"
+		fatal "$ip: invalid ipv4 address"
 	fi
 	if [ "$netlen" -le 0 -o "$netlen" -ge 32 ]; then
 		fatal "$netlen: invalid netlen"
@@ -812,7 +812,7 @@ subnet6="fd1a:6126:2887::/48"
 subnet=$subnet6
 device=""
 pubkey=""
-netlen=""
+asnet=""
 cmd="dryrun"
 
 while [ "$#" != 0 ]; do
@@ -843,12 +843,17 @@ while [ "$#" != 0 ]; do
 				subnet="$1"
 				ipbits=32
 			else
-				fatal "$1: not a valid subnet"
+				fatal "$1: invalid subnet"
 			fi
 			netlen=$(echo $1 | cut -d/ -f2)
 			if [ "$netlen" -le 0 -o "$netlen" -ge "$ipbits" ]; then
-				fatal "$netlen: not a valid netlen for this prefix"
+				fatal "$netlen: invalid net length"
 			fi
+			shift
+			;;
+		--asnet)
+			shift
+			asnet=$1
 			shift
 			;;
 		gen)
@@ -885,7 +890,12 @@ case "$cmd" in
 		help
 		;;
 	"gen")
-		gen_ip $pubkey $subnet
+		ip=$(gen_ip $pubkey $subnet)
+		if [ -z $asnet ]; then
+			echo $ip
+		else
+			cut_ip $ip $asnet
+		fi
 		;;
 	"dryrun")
 		if [ "$(id -u)" != "0" ]; then
