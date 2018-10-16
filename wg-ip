@@ -1,9 +1,11 @@
 #!/bin/sh
 
+PROGNAME="$(basename $0)"
+
 # usage
 help(){
 	cat <<-EOF
-	Usage: $1 [-4|-6|--subnet <subnet>] [gen <pubkey>|[dev <device> ]apply|[dev <device> ]dryrun]
+	Usage: $PROGNAME [-4|-6|--subnet <subnet>] [gen <pubkey>|[dev <device> ]apply|[dev <device> ]dryrun]
 	Subnet used:
 	    -4
 	        sets the subnet to $subnet4
@@ -682,6 +684,7 @@ subnet6="fd1a:6126:2887::/48"
 subnet=$subnet6
 device=""
 pubkey=""
+netlen=""
 cmd="dryrun"
 
 while [ "$#" != 0 ]; do
@@ -751,7 +754,7 @@ case "$cmd" in
 		runtests
 		;;
 	"--help")
-		help $(basename $0)
+		help
 		;;
 	"gen")
 		gen_ip $pubkey $subnet
