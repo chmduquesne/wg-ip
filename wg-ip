@@ -342,9 +342,9 @@ test_is_ipv4(){
 	return $status
 }
 
-# returns the bytes of a given netmask
-mask_to_bytes(){
-	netmask=$1
+# returns the bytes of a given netlen
+mask(){
+	netlen=$1
 	ipversion=$2
 	if [ "$ipversion" = "ipv4" ]; then
 		len=4
@@ -355,7 +355,7 @@ mask_to_bytes(){
 	res=""
 	for i in $(seq 0 $(( len - 1 )) ); do
 		b=0
-		j=$(( netmask - 8 * i))
+		j=$(( netlen - 8 * i))
 		if [ $j -ge 8 ]; then
 			b=255
 		elif [ $j -gt 0 ]; then
@@ -368,17 +368,17 @@ mask_to_bytes(){
 	echo $res
 }
 
-# unit tests for mask_to_bytes
-test_mask_to_bytes(){
+# unit tests for mask
+test_mask(){
 	status=0
 	printf "."
-	if [ "$(mask_to_bytes 8 ipv4)" != "255 0 0 0" ]; then
-		echo "mask_to_bytes 8 ipv4: FAIL"
+	if [ "$(mask 8 ipv4)" != "255 0 0 0" ]; then
+		echo "mask 8 ipv4: FAIL"
 		status=1
 	fi
 	printf "."
-	if [ "$(mask_to_bytes 9 4)" != "255 128 0 0 0 0 0 0 0 0 0 0 0 0 0 0" ]; then
-		echo "mask_to_bytes 8 ipv6: FAIL"
+	if [ "$(mask 9 4)" != "255 128 0 0 0 0 0 0 0 0 0 0 0 0 0 0" ]; then
+		echo "mask 8 ipv6: FAIL"
 		status=1
 	fi
 	return $status
@@ -395,16 +395,16 @@ gen_ipv6(){
 	fi
 	prefix=$(expand_ipv6 $prefix)
 
-	netmask=$(echo $subnet | cut -d/ -f2)
-	if [ "$netmask" -le 0 -o "$netmask" -ge 128 ]; then
-		fatal "$netmask: invalid netmask"
+	netlen=$(echo $subnet | cut -d/ -f2)
+	if [ "$netlen" -le 0 -o "$netlen" -ge 128 ]; then
+		fatal "$netlen: invalid netlen"
 	fi
 
 	pubkeychecksum=$(echo $pubkey | sha256sum)
 
 	suffix_bytes=$(echo $pubkeychecksum | grep -o "[0-9a-f]\{2\}")
 	prefix_bytes=$(echo $prefix | grep -o "[0-9a-f]\{2\}")
-	mask_bytes=$(mask_to_bytes $netmask "ipv6")
+	mask_bytes=$(mask $netlen "ipv6")
 
 	bytes=""
 	set $(zip "$mask_bytes" "$prefix_bytes" "$suffix_bytes")
@@ -460,16 +460,16 @@ gen_ipv4(){
 		fatal "$prefix: not a valid ipv4 address"
 	fi
 
-	netmask=$(echo $subnet | cut -d/ -f2)
-	if [ "$netmask" -le 0 -o "$netmask" -ge 32 ]; then
-		fatal "$netmask: invalid netmask"
+	netlen=$(echo $subnet | cut -d/ -f2)
+	if [ "$netlen" -le 0 -o "$netlen" -ge 32 ]; then
+		fatal "$netlen: invalid netlen"
 	fi
 
 	pubkeychecksum=$(echo $pubkey | sha256sum)
 
 	suffix_bytes=$(echo $pubkeychecksum | grep -o "[0-9a-f]\{2\}")
 	prefix_bytes=$(echo $prefix | grep -o "[0-9]\+")
-	mask_bytes=$(mask_to_bytes $netmask "ipv4")
+	mask_bytes=$(mask $netlen "ipv4")
 
 	set $(zip "$mask_bytes" "$prefix_bytes" "$suffix_bytes")
 
@@ -532,7 +532,7 @@ dryrun_iface(){
 	iface="$2"
 
 	prefix=$(echo $subnet | cut -d/ -f1)
-	netmask=$(echo $subnet | cut -d/ -f2)
+	netlen=$(echo $subnet | cut -d/ -f2)
 
 	ipbits=128
 	if is_ipv4 $prefix; then
@@ -542,7 +542,7 @@ dryrun_iface(){
 	# configure address
 	iface_pubkey=$(wg show "$iface" public-key)
 	iface_ip=$(gen_ip "$iface_pubkey" "$subnet")
-	echo "ip address add $iface_ip/$netmask dev $iface"
+	echo "ip address add $iface_ip/$netlen dev $iface"
 
 	# configure allowed ips on each peer
 	for peer_pubkey in $(wg show $iface peers); do
@@ -717,9 +717,9 @@ while [ "$#" != 0 ]; do
 			else
 				fatal "$1: not a valid subnet"
 			fi
-			netmask=$(echo $1 | cut -d/ -f2)
-			if [ "$netmask" -le 0 -o "$netmask" -ge "$ipbits" ]; then
-				fatal "$netmask: not a valid netmask for this prefix"
+			netlen=$(echo $1 | cut -d/ -f2)
+			if [ "$netlen" -le 0 -o "$netlen" -ge "$ipbits" ]; then
+				fatal "$netlen: not a valid netlen for this prefix"
 			fi
 			shift
 			;;
