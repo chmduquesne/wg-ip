@@ -5,7 +5,7 @@ PROGNAME="$(basename $0)"
 # usage
 help(){
 	cat <<-EOF
-	Usage: $PROGNAME [-4|-6|--subnet <subnet>] [gen <pubkey>|[dev <device> ]apply|[dev <device> ]dryrun]
+	Usage: $PROGNAME [-4|-6|--subnet <subnet>][--asnet <length>] [gen <pubkey>|[dev <device> ]apply|[dev <device> ]dryrun]
 	Subnet used:
 	    -4
 	        sets the subnet to $subnet4
@@ -28,6 +28,8 @@ help(){
 	        run the embedded test suite
 	    gen <pubkey>:
 	        generate an ip from the pubkey, in the specified subnet.
+	        when the --asnet option is used, the generated ip is cut to
+	        length to generate a subnet prefix instead of a whole ip.
 	    dryrun:
 	        generate an ip from the pubkey of the specified interface (see
 	        "device used"), as well as for all the peers of that same

@@ -3,32 +3,23 @@
 wg-ip is a tool to assign ip addresses derived from the public keys to
 wireguard interfaces.
 
-Quality
--------
-
-wg-ip is written to be portable across shells. It should run fine on
-openwrt (if not, it's a bug). A test suite guarantees some level of
-robustness.
-
 How to
 ------
 
-I personally just run `wg-ip apply` after adding the peers and before
+I personally just run `wg-ip apply dev wg0` after adding the peers and
 bringing the interface up. In my automation scripts, I obtain the private
 ip address of a given node by using `wg-ip gen <node-pubkey>`.
 
-If you have more specific needs:
+Portability
+-----------
 
-- For a node with several wireguard interface, use `dev` to specify which one:
-  `wg-ip dev wg0 apply`.
-- When you want ipv4 addresses or a different v4/v6 subnet, use `-4` or
-  more generally `--subnet` (whether to use ipv4 or ipv6 will be inferred
-  from the subnet).
+wg-ip is written to be portable across shells. It should run fine on
+openwrt (if not, it's a bug).
 
 Advanced usage
 --------------
 
-    Usage: wg-ip [-4|-6|--subnet <subnet>] [gen <pubkey>|[dev <device> ]apply|[dev <device> ]dryrun]
+    Usage: wg-ip [-4|-6|--subnet <subnet>][--asnet <length>] [gen <pubkey>|[dev <device> ]apply|[dev <device> ]dryrun]
     Subnet used:
         -4
             sets the subnet to 10.0.0.0/8
@@ -51,6 +42,8 @@ Advanced usage
             run the embedded test suite
         gen <pubkey>:
             generate an ip from the pubkey, in the specified subnet.
+            when the --asnet option is used, the generated ip is cut to
+            length to generate a subnet prefix instead of a whole ip.
         dryrun:
             generate an ip from the pubkey of the specified interface (see
             "device used"), as well as for all the peers of that same
@@ -61,10 +54,10 @@ Advanced usage
         apply:
             actually run the commands displayed by 'dryrun'
     When several commands are specified, only the last one is
-    executed. Executing 'wg-ip' without argument is the same as running
-    'wg-ip dryrun'
+    executed. Executing '' without argument is the same as running
+    ' dryrun'
     Example:
-        wg-ip dev wg0 apply
+         dev wg0 apply
 
 Original post
 -------------
