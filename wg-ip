@@ -402,16 +402,19 @@ gen_ip(){
 	subnet=$2
 
 	prefix=$(echo $subnet | cut -d/ -f1)
+	netlen=$(echo $subnet | cut -d/ -f2)
 	if ! is_ip $prefix; then
 		fatal "$prefix: invalid ip address"
 	fi
 	if is_ipv6 $prefix; then
 		prefix=$(expand_ipv6 $prefix)
-	fi
-	netlen=$(echo $subnet | cut -d/ -f2)
-	len=32
-	if is_ipv6 $prefix; then
+		prefix_bytes=$(hex2dec "$(echo $prefix | grep -o '[0-9a-f]\{2\}')")
+		mask_bytes=$(mask $netlen "ipv6")
 		len=128
+	else
+		prefix_bytes=$(echo $prefix | grep -o "[0-9]\+")
+		mask_bytes=$(mask $netlen "ipv4")
+		len=32
 	fi
 	if [ "$netlen" -le 0 -o "$netlen" -ge $len ]; then
 		fatal "$netlen: invalid net length"
@@ -420,13 +423,6 @@ gen_ip(){
 	pubkeychecksum=$(echo $pubkey | sha256sum)
 
 	suffix_bytes=$(hex2dec "$(echo $pubkeychecksum | grep -o '[0-9a-f]\{2\}')")
-	if is_ipv6 $prefix; then
-		prefix_bytes=$(hex2dec "$(echo $prefix | grep -o '[0-9a-f]\{2\}')")
-		mask_bytes=$(mask $netlen "ipv6")
-	else
-		prefix_bytes=$(echo $prefix | grep -o "[0-9]\+")
-		mask_bytes=$(mask $netlen "ipv4")
-	fi
 
 	bytes=""
 	nbytes=$(( len/8 ))
@@ -494,20 +490,19 @@ cut_ip(){
 	fi
 	if is_ipv6 $ip; then
 		ip=$(expand_ipv6 $ip)
-	fi
-	len=32
-	if is_ipv6 $ip; then
+		ip_bytes=$(hex2dec "$(echo $ip | grep -o '[0-9a-f]\{2\}')")
 		len=128
+	else
+		len=32
+		ip_bytes=$(echo $ip | grep -o "[0-9]\+")
 	fi
 	if [ "$netlen" -le 0 -o "$netlen" -ge $len ]; then
 		fatal "$netlen: invalid net length"
 	fi
 	if is_ipv6 $ip; then
 		mask_bytes=$(mask $netlen "ipv6")
-		ip_bytes=$(hex2dec "$(echo $ip | grep -o '[0-9a-f]\{2\}')")
 	else
 		mask_bytes=$(mask $netlen "ipv4")
-		ip_bytes=$(echo $ip | grep -o "[0-9]\+")
 	fi
 
 	bytes=""
