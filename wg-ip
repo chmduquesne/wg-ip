@@ -344,27 +344,17 @@ test_is_ipv4(){
 
 # test if the input is an ip (any type)
 is_ip(){
-	if is_ipv4 $1; then
-		return 0
-	fi
-	if is_ipv6 $1; then
-		return 0
-	fi
+	is_ipv4 $1 && return 0
+	is_ipv6 $1 && return 0
 	return 1
 }
 
-# returns the bytes of a given netlen
+# returns 16 bytes such that the first netlen bits are 1, 0 after
 mask(){
 	netlen=$1
-	ipversion=$2
-	if [ "$ipversion" = "ipv4" ]; then
-		len=4
-	else
-		len=16
-	fi
 
 	res=""
-	for i in $(seq 0 $(( len - 1 )) ); do
+	for i in $(seq 0 15 ); do
 		b=0
 		j=$(( netlen - 8 * i))
 		if [ $j -ge 8 ]; then
@@ -383,38 +373,49 @@ mask(){
 test_mask(){
 	status=0
 	printf "."
-	if [ "$(mask 8 ipv4)" != "255 0 0 0" ]; then
-		echo "mask 8 ipv4: FAIL"
+	if [ "$(mask 8)" != "255 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0" ]; then
+		echo "mask 8: FAIL"
 		status=1
 	fi
 	printf "."
-	if [ "$(mask 9 4)" != "255 128 0 0 0 0 0 0 0 0 0 0 0 0 0 0" ]; then
-		echo "mask 8 ipv6: FAIL"
+	if [ "$(mask 9)" != "255 128 0 0 0 0 0 0 0 0 0 0 0 0 0 0" ]; then
+		echo "mask 9: FAIL"
 		status=1
 	fi
 	return $status
 }
 
-# format the input bytes as an ipv6
-format_ipv6(){
-	ip=$(
-		printf \
-			"%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\n" \
-			"$@" \
-	)
-	compress_ipv6 $ip
-}
-
-# format the input bytes as an ipv4
-format_ipv4(){
-	printf "%d.%d.%d.%d\n" "$@"
-}
-
 # format the input bytes as an ip
 format_ip(){
-	[ $# = 4 ]  && format_ipv4 "$@" && return 0
-	[ $# = 16 ] && format_ipv6 "$@" && return 0
+	if [ $# = 4 ]; then
+		printf "%d.%d.%d.%d\n" "$@"
+		return 0
+	fi
+	if [ $# = 16 ]; then
+		ip=$(
+			printf \
+				"%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\n" \
+				"$@" \
+		)
+		compress_ipv6 $ip
+		return 0
+	fi
 	fatal "cannot format input as an ip"
+}
+
+# format the input ip as bytes
+ip_to_bytes(){
+	ip=$1
+
+	if ! is_ip $ip; then
+		fatal "$ip: invalid ip address"
+	fi
+
+	if is_ipv6 $ip; then
+		hex2dec "$(expand_ipv6 $ip | grep -o '[0-9a-f]\{2\}')"
+	else
+		echo $ip | grep -o "[0-9]\+"
+	fi
 }
 
 # generates an ip from a pubkey and a subnet (infers the version from the
@@ -433,14 +434,8 @@ gen_ip(){
 		fatal "$netlen: invalid net length"
 	fi
 
-	if is_ipv6 $prefix; then
-		prefix_bytes=$(hex2dec "$(expand_ipv6 $prefix | grep -o '[0-9a-f]\{2\}')")
-		mask_bytes=$(mask $netlen "ipv6")
-	else
-		prefix_bytes=$(echo $prefix | grep -o "[0-9]\+")
-		mask_bytes=$(mask $netlen "ipv4")
-	fi
-
+	prefix_bytes=$(ip_to_bytes $prefix)
+	mask_bytes=$(mask $netlen)
 	suffix_bytes=$(hex2dec "$(echo $pubkey | sha256sum | grep -o '[0-9a-f]\{2\}')")
 
 	bytes=""
@@ -458,7 +453,7 @@ gen_ip(){
 	format_ip $bytes
 }
 
-# unit tests for cut_ipv6
+# unit tests for gen_ip
 test_gen_ip() {
 	tests=" \
 		foo fd1a:6126:2887::/48 fd1a:6126:2887:f9b1:d61e:21e7:96d7:8dcc \
@@ -501,13 +496,8 @@ cut_ip(){
 		fatal "$netlen: invalid net length"
 	fi
 
-	if is_ipv6 $ip; then
-		ip_bytes=$(hex2dec "$(expand_ipv6 $ip | grep -o '[0-9a-f]\{2\}')")
-		mask_bytes=$(mask $netlen "ipv6")
-	else
-		ip_bytes=$(echo $ip | grep -o "[0-9]\+")
-		mask_bytes=$(mask $netlen "ipv4")
-	fi
+	ip_bytes=$(ip_to_bytes $ip)
+	mask_bytes=$(mask $netlen)
 
 	bytes=""
 	set $(zip "$mask_bytes" "$ip_bytes")
