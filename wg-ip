@@ -342,6 +342,17 @@ test_is_ipv4(){
 	return $status
 }
 
+# test if the input is an ip (any type)
+is_ip(){
+	if is_ipv4 $1; then
+		return 0
+	fi
+	if is_ipv6 $1; then
+		return 0
+	fi
+	return 1
+}
+
 # returns the bytes of a given netlen
 mask(){
 	netlen=$1
@@ -384,133 +395,26 @@ test_mask(){
 	return $status
 }
 
-# generates an ipv6 from a pubkey and a subnet
-gen_ipv6(){
-	pubkey=$1
-	subnet=$2
-
-	prefix=$(echo $subnet | cut -d/ -f1)
-	if ! is_ipv6 $prefix; then
-		fatal "$prefix: invalid ipv6 address"
-	fi
-	prefix=$(expand_ipv6 $prefix)
-
-	netlen=$(echo $subnet | cut -d/ -f2)
-	if [ "$netlen" -le 0 -o "$netlen" -ge 128 ]; then
-		fatal "$netlen: invalid net length"
-	fi
-
-	pubkeychecksum=$(echo $pubkey | sha256sum)
-
-	suffix_bytes=$(echo $pubkeychecksum | grep -o "[0-9a-f]\{2\}")
-	prefix_bytes=$(echo $prefix | grep -o "[0-9a-f]\{2\}")
-	mask_bytes=$(mask $netlen "ipv6")
-
-	bytes=""
-	set $(zip "$mask_bytes" "$prefix_bytes" "$suffix_bytes")
-	for i in $(seq 0 15); do
-		mask_byte=$1
-		prefix_byte=$(hex2dec $2)
-		suffix_byte=$(hex2dec $3)
-
-		b=$(( (prefix_byte & mask_byte) | (suffix_byte & (mask_byte^255)) ))
-		bytes="$bytes $b"
-		shift 3
-	done
-
+# format the input bytes as an ipv6
+format_ipv6(){
 	ip=$(
 		printf \
 			"%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\n" \
-			$bytes \
+			"$@" \
 	)
 	compress_ipv6 $ip
 }
 
-# unit tests for gen_ipv6
-test_gen_ipv6() {
-	tests=" \
-		foo fd1a:6126:2887::/48 fd1a:6126:2887:f9b1:d61e:21e7:96d7:8dcc \
-		bar fd1a:6126:2887::/48 fd1a:6126:2887:6691:8c98:63af:ca94:2d0f \
-		foo fd1a:6126:2887::/49 fd1a:6126:2887:79b1:d61e:21e7:96d7:8dcc \
-		bar fd1a:6126:2887::/49 fd1a:6126:2887:6691:8c98:63af:ca94:2d0f \
-		foo 2001:db8::/64       2001:db8::d61e:21e7:96d7:8dcc \
-		bar 2001:db8::/64       2001:db8::8c98:63af:ca94:2d0f \
-	"
-	set $tests
-	status=0
-	while [ "$#" != 0 ]; do
-		printf "."
-		res="$(gen_ipv6 $1 $2)"
-		if [ "$res" != "$3" ]; then
-			echo "gen_ipv6 $1 $2: expected $3, got $res"
-			status=1
-		fi
-		shift 3
-	done
-	return $status
+# format the input bytes as an ipv4
+format_ipv4(){
+	printf "%d.%d.%d.%d\n" "$@"
 }
 
-# generates an ipv4 from a pubkey and a subnet
-gen_ipv4(){
-	pubkey=$1
-	subnet=$2
-
-	prefix=$(echo $subnet | cut -d/ -f1)
-	if ! is_ipv4 $prefix; then
-		fatal "$prefix: invalid ipv4 address"
-	fi
-
-	netlen=$(echo $subnet | cut -d/ -f2)
-	if [ "$netlen" -le 0 -o "$netlen" -ge 32 ]; then
-		fatal "$netlen: invalid net length"
-	fi
-
-	pubkeychecksum=$(echo $pubkey | sha256sum)
-
-	suffix_bytes=$(echo $pubkeychecksum | grep -o "[0-9a-f]\{2\}")
-	prefix_bytes=$(echo $prefix | grep -o "[0-9]\+")
-	mask_bytes=$(mask $netlen "ipv4")
-
-	set $(zip "$mask_bytes" "$prefix_bytes" "$suffix_bytes")
-
-	bytes=""
-	for i in $(seq 0 3); do
-		mask_byte=$1
-		prefix_byte=$2
-		suffix_byte=$(hex2dec $3)
-
-		b=$(( (prefix_byte & mask_byte) | (suffix_byte & (mask_byte^255)) ))
-		bytes="$bytes $b"
-		shift 3
-	done
-
-	printf "%d.%d.%d.%d\n" \
-		$bytes
-
-}
-
-# unit tests for gen_ipv4
-test_gen_ipv4() {
-	tests=" \
-		foo 10.0.0.0/8    10.187.157.128 \
-		bar 10.0.0.0/8    10.134.94.149  \
-		foo 10.0.0.0/9    10.59.157.128  \
-		bar 10.0.0.0/9    10.6.94.149    \
-		foo 172.16.0.0/12 172.27.157.128 \
-		bar 172.16.0.0/12 172.22.94.149  \
-		"
-	set $tests
-	status=0
-	while [ "$#" != 0 ]; do
-		printf "."
-		res="$(gen_ipv4 $1 $2)"
-		if [ "$res" != "$3" ]; then
-			echo "gen_ipv4 $1: expected $3, got $res"
-			status=1
-		fi
-		shift 3
-	done
-	return $status
+# format the input bytes as an ip
+format_ip(){
+	[ $# = 4 ]  && format_ipv4 "$@" && return 0
+	[ $# = 16 ] && format_ipv6 "$@" && return 0
+	fatal "cannot format input as an ip"
 }
 
 # generates an ip from a pubkey and a subnet (infers the version from the
@@ -518,66 +422,65 @@ test_gen_ipv4() {
 gen_ip(){
 	pubkey=$1
 	subnet=$2
+
 	prefix=$(echo $subnet | cut -d/ -f1)
-	if is_ipv6 $prefix; then
-		gen_ipv6 $1 $2
-	else
-		gen_ipv4 $1 $2
+	netlen=$(echo $subnet | cut -d/ -f2)
+	if ! is_ip $prefix; then
+		fatal "$prefix: invalid ip address"
 	fi
-}
-
-# cut an ipv6 to the given length to create a netmask
-cut_ipv6(){
-	ip=$1
-	netlen=$2
-
-	if ! is_ipv6 $ip; then
-		fatal "$ip: invalid ipv6 address"
-	fi
-	ip=$(expand_ipv6 $ip)
-	if [ "$netlen" -le 0 -o "$netlen" -ge 128 ]; then
+	is_ipv6 $prefix && len=128 || len=32
+	if [ "$netlen" -le 0 -o "$netlen" -ge $len ]; then
 		fatal "$netlen: invalid net length"
 	fi
 
-	mask_bytes=$(mask $netlen "ipv6")
-	ip_bytes=$(echo $ip | grep -o "[0-9a-f]\{2\}")
+	if is_ipv6 $prefix; then
+		prefix_bytes=$(hex2dec "$(expand_ipv6 $prefix | grep -o '[0-9a-f]\{2\}')")
+		mask_bytes=$(mask $netlen "ipv6")
+	else
+		prefix_bytes=$(echo $prefix | grep -o "[0-9]\+")
+		mask_bytes=$(mask $netlen "ipv4")
+	fi
+
+	suffix_bytes=$(hex2dec "$(echo $pubkey | sha256sum | grep -o '[0-9a-f]\{2\}')")
 
 	bytes=""
-	set $(zip "$mask_bytes" "$ip_bytes")
-	for i in $(seq 0 15); do
+	set $(zip "$mask_bytes" "$prefix_bytes" "$suffix_bytes")
+	for i in $(seq 1 $(( len/8 )) ); do
 		mask_byte=$1
-		ip_byte=$(hex2dec $2)
+		prefix_byte=$2
+		suffix_byte=$3
 
-		b=$(( ip_byte & mask_byte ))
+		b=$(( (prefix_byte & mask_byte) | (suffix_byte & (mask_byte^255)) ))
 		bytes="$bytes $b"
-		shift 2
+		shift 3
 	done
 
-	truncated=$(
-		printf \
-			"%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\n" \
-			$bytes \
-	)
-	compressed=$(compress_ipv6 $truncated)
-	echo "$compressed/$netlen"
+	format_ip $bytes
 }
 
 # unit tests for cut_ipv6
-test_cut_ipv6() {
+test_gen_ip() {
 	tests=" \
-		fd1a:6126:2887:f9b1:d61e:21e7:96d7:8dcc 48 fd1a:6126:2887::/48 \
-		fd1a:6126:2887:6691:8c98:63af:ca94:2d0f 48 fd1a:6126:2887::/48 \
-		fd1a:6126:2887:79b1:d61e:21e7:96d7:8dcc 49 fd1a:6126:2887::/49 \
-		2001:db8::d61e:21e7:96d7:8dcc           64 2001:db8::/64        \
-		2001:db8::8c98:63af:ca94:2d0f           64 2001:db8::/64        \
+		foo fd1a:6126:2887::/48 fd1a:6126:2887:f9b1:d61e:21e7:96d7:8dcc \
+		bar fd1a:6126:2887::/48 fd1a:6126:2887:6691:8c98:63af:ca94:2d0f \
+		foo fd1a:6126:2887::/49 fd1a:6126:2887:79b1:d61e:21e7:96d7:8dcc \
+		bar fd1a:6126:2887::/49 fd1a:6126:2887:6691:8c98:63af:ca94:2d0f \
+		foo 2001:db8::/64       2001:db8::d61e:21e7:96d7:8dcc \
+		bar 2001:db8::/64       2001:db8::8c98:63af:ca94:2d0f \
+		foo 10.0.0.0/8          10.187.157.128 \
+		bar 10.0.0.0/8          10.134.94.149  \
+		foo 10.0.0.0/9          10.59.157.128  \
+		bar 10.0.0.0/9          10.6.94.149    \
+		foo 172.16.0.0/12       172.27.157.128 \
+		bar 172.16.0.0/12       172.22.94.149  \
 	"
 	set $tests
 	status=0
 	while [ "$#" != 0 ]; do
 		printf "."
-		res="$(cut_ipv6 $1 $2)"
+		res="$(gen_ip $1 $2)"
 		if [ "$res" != "$3" ]; then
-			echo "cut_ipv6 $1 $2: expected $3, got $res"
+			echo "gen_ip $1 $2: expected $3, got $res"
 			status=1
 		fi
 		shift 3
@@ -585,24 +488,30 @@ test_cut_ipv6() {
 	return $status
 }
 
-# cut an ipv4 to the given length to create a netmask
-cut_ipv4(){
+# cut an ip to the given length to create a netmask
+cut_ip(){
 	ip=$1
 	netlen=$2
 
-	if ! is_ipv4 $ip; then
-		fatal "$ip: invalid ipv4 address"
+	if ! is_ip $ip; then
+		fatal "$ip: invalid ipv6 address"
 	fi
-	if [ "$netlen" -le 0 -o "$netlen" -ge 32 ]; then
-		fatal "$netlen: invalid netlen"
+	is_ipv6 $ip && len=128 || len=32
+	if [ "$netlen" -le 0 -o "$netlen" -ge $len ]; then
+		fatal "$netlen: invalid net length"
 	fi
 
-	mask_bytes=$(mask $netlen "ipv4")
-	ip_bytes=$(echo $ip | grep -o "[0-9]\+")
+	if is_ipv6 $ip; then
+		ip_bytes=$(hex2dec "$(expand_ipv6 $ip | grep -o '[0-9a-f]\{2\}')")
+		mask_bytes=$(mask $netlen "ipv6")
+	else
+		ip_bytes=$(echo $ip | grep -o "[0-9]\+")
+		mask_bytes=$(mask $netlen "ipv4")
+	fi
 
 	bytes=""
 	set $(zip "$mask_bytes" "$ip_bytes")
-	for i in $(seq 0 3); do
+	for i in $(seq 1 $(( len/8 )) ); do
 		mask_byte=$1
 		ip_byte=$2
 
@@ -611,28 +520,29 @@ cut_ipv4(){
 		shift 2
 	done
 
-	ip=$(
-		printf "%d.%d.%d.%d\n" \
-			$bytes
-	)
-	echo "$ip/$netlen"
+	echo "$(format_ip $bytes)/$netlen"
 }
 
-# unit tests for cut_ipv6
-test_cut_ipv4() {
+# unit tests for cut_ip
+test_cut_ip() {
 	tests=" \
-		10.187.157.128 8  10.0.0.0/8    \
-		10.134.94.149  8  10.0.0.0/8    \
-		10.59.157.128  9  10.0.0.0/9    \
-		10.6.94.149    9  10.0.0.0/9    \
-		172.27.157.128 12 172.16.0.0/12 \
-		172.22.94.149  12 172.16.0.0/12 \
+		fd1a:6126:2887:f9b1:d61e:21e7:96d7:8dcc 48 fd1a:6126:2887::/48 \
+		fd1a:6126:2887:6691:8c98:63af:ca94:2d0f 48 fd1a:6126:2887::/48 \
+		fd1a:6126:2887:79b1:d61e:21e7:96d7:8dcc 49 fd1a:6126:2887::/49 \
+		2001:db8::d61e:21e7:96d7:8dcc           64 2001:db8::/64       \
+		2001:db8::8c98:63af:ca94:2d0f           64 2001:db8::/64       \
+		10.187.157.128                          8  10.0.0.0/8          \
+		10.134.94.149                           8  10.0.0.0/8          \
+		10.59.157.128                           9  10.0.0.0/9          \
+		10.6.94.149                             9  10.0.0.0/9          \
+		172.27.157.128                          12 172.16.0.0/12       \
+		172.22.94.149                           12 172.16.0.0/12       \
 	"
 	set $tests
 	status=0
 	while [ "$#" != 0 ]; do
 		printf "."
-		res="$(cut_ipv4 $1 $2)"
+		res="$(cut_ip $1 $2)"
 		if [ "$res" != "$3" ]; then
 			echo "cut_ipv6 $1 $2: expected $3, got $res"
 			status=1
@@ -640,18 +550,6 @@ test_cut_ipv4() {
 		shift 3
 	done
 	return $status
-}
-
-# generates an ip from a pubkey and a subnet (infers the version from the
-# subnet)
-cut_ip(){
-	ip=$1
-	netlen=$2
-	if is_ipv6 $ip; then
-		cut_ipv6 $1 $2
-	else
-		cut_ipv4 $1 $2
-	fi
 }
 
 # print the commands required to configure the interface with the subnet
