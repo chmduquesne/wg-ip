@@ -728,11 +728,12 @@ while [ "$#" != 0 ]; do
 			;;
 		--subnet)
 			shift
-			prefix=$(echo $1 | cut -d/ -f1)
+			subnet=$1
+			prefix=$(echo $subnet | cut -d/ -f1)
 			if ! is_ip $prefix; then
 				fatal "$1: invalid subnet"
 			fi
-			netlen=$(echo $1 | cut -d/ -f2)
+			netlen=$(echo $subnet | cut -d/ -f2)
 			is_ipv6 $prefix && len=128 || len=32
 			if [ "$netlen" -le 0 -o "$netlen" -ge "$len" ]; then
 				fatal "$netlen: invalid net length"
