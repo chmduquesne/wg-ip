@@ -270,6 +270,9 @@ is_ipv6(){
 	[ "$1" = "$expanded" ] && return 0
 	compressed="$(compress_ipv6 $expanded)"
 	[ "$1" = "$compressed" ] && return 0
+	#echo "input:      $1" >> /dev/stderr
+	#echo "expanded:   $expanded" >> /dev/stderr
+	#echo "compressed: $compressed" >> /dev/stderr
 	return 1
 }
 
@@ -726,17 +729,13 @@ while [ "$#" != 0 ]; do
 		--subnet)
 			shift
 			prefix=$(echo $1 | cut -d/ -f1)
-			if is_ipv6 $prefix; then
-				subnet="$1"
-				ipbits=128
-			elif is_ipv4 $prefix; then
-				subnet="$1"
-				ipbits=32
-			else
+			echo "testing $1"
+			if ! is_ip $prefix; then
 				fatal "$1: invalid subnet"
 			fi
 			netlen=$(echo $1 | cut -d/ -f2)
-			if [ "$netlen" -le 0 -o "$netlen" -ge "$ipbits" ]; then
+			is_ipv6 $ip && len=128 || len=32
+			if [ "$netlen" -le 0 -o "$netlen" -ge "$len" ]; then
 				fatal "$netlen: invalid net length"
 			fi
 			shift
